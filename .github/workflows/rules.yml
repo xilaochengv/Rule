@@ -8,22 +8,18 @@ jobs:
     name: 生成规则文件
     runs-on: ubuntu-latest
     steps:
-    - name: 下载规则文件生成工具
+    - name: 下载并生成
       run: |
         curl -so v2ipdat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2ipdat
         curl -so v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
         mkdir ips sites
         chmod 755 v2ipdat v2sitedat
-    - name: 下载geosite规则并生成geosite.dat文件
-      run: |
         curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
         curl -s https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
         ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
         rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
         ./v2sitedat
-    - name: 下载geoip规则并生成geoip.dat文件
-      run: |
         curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/cn
         cat /tmp/cn | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
         cat /tmp/cn | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
