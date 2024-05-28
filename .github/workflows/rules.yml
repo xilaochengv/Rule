@@ -10,10 +10,11 @@ jobs:
     steps:
     - name: 下载规则文件生成工具
       run: |
+        curl -so gfwlist2dnsmasq.sh https://raw.githubusercontent.com/xilaochengv/Rule/main/gfwlist2dnsmasq.sh
         curl -so v2ipdat https://raw.githubusercontent.com/xilaochengv/Rule/main/v2ipdat
         curl -so v2sitedat https://raw.githubusercontent.com/xilaochengv/Rule/main/v2sitedat
         mkdir ips sites
-        chmod 755 v2ipdat v2sitedat
+        chmod 755 gfwlist2dnsmasq.sh v2ipdat v2sitedat
     - name: 下载geoip规则
       run: |
         curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/cn
@@ -31,6 +32,7 @@ jobs:
         ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
         rules="apple bahamut epicgames google microsoft netflix ookla-speedtest rockstar steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
+        for rule in $(ls sites);do sed -i 's/#.*//' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
     - name: 生成文件
       run: |
         ./v2ipdat
