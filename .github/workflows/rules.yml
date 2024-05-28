@@ -8,7 +8,7 @@ jobs:
     name: 生成规则文件
     runs-on: ubuntu-latest
     steps:
-    - name: 下载生成规则文件工具
+    - name: 下载规则文件生成工具
       run: |
         curl -so v2ipdat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2ipdat
         curl -so v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
