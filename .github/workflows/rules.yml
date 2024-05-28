@@ -23,9 +23,7 @@ jobs:
         curl -s https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
         for line in $(awk 'a[$0]++ {print NR}' ips/google | sort -r);do [ "$line" ] && sed -i "${line}d" ips/google;done
-        echo -n "$(cat ips/cn)" > ips/cn
-        echo -n "$(cat ips/google)" > ips/google
-        echo -n "$(cat ips/telegram)" > ips/telegram
+        for list in $(ls ips);do echo -n "$(cat ips/$list)" > ips/$list;done
     - name: 下载geosite规则
       run: |
         curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
