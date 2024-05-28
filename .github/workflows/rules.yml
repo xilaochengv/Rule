@@ -19,9 +19,9 @@ jobs:
       run: |
         curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/ips
         cat /tmp/ips | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
-        cat /tmp/ips | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > cnip.txt
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > cn_ip.txt
         cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
-        cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' > cnipv6.txt
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' > cn_ipv6.txt
         curl -s https://www.gstatic.com/ipranges/goog.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' > ips/google
         curl -s https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
