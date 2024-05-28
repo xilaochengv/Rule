@@ -38,7 +38,6 @@ jobs:
     - name: 生成文件
       run: |
         ./v2ipdat
-        mv ips/cnip ips/cnip.txt
         ./v2sitedat
         echo "自用规则文件" > body
         rules="" && for rule in $(ls ips);do rules="$rules$(echo -n "$rule ")";done
