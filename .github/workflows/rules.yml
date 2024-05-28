@@ -35,7 +35,7 @@ jobs:
       run: |
         ./v2ipdat
         ./v2sitedat
-        echo "本人自用规则文件文件" > body
+        echo "自用规则文件文件" > body
         rules="" && for rule in $(ls ips);do rules="$rules$(echo -n "$rule ")";done
         echo "geoip可用：$(echo $rules | sed 's/ /,/g')" >> body
         rules="" && for rule in $(ls sites);do rules="$rules$(echo -n "$rule ")";done
