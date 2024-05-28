@@ -14,12 +14,6 @@ jobs:
         curl -so v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
         mkdir ips sites
         chmod 755 v2ipdat v2sitedat
-        curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
-        curl -s https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
-        ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
-        rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
-        for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
-        ./v2sitedat
         curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/cn
         cat /tmp/cn | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
         cat /tmp/cn | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
@@ -30,7 +24,15 @@ jobs:
         echo -n "$(cat ips/cn)" > ips/cn
         echo -n "$(cat ips/google)" > ips/google
         echo -n "$(cat ips/telegram)" > ips/telegram
+        curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
+        curl -s https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
+        ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
+        rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
+        for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
+        ls ips
+        ls sites
         ./v2ipdat
+        ./v2sitedat
     - name: 上传规则文件到Release
       uses: softprops/action-gh-release@v1
       with:
