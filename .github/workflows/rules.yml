@@ -35,6 +35,11 @@ jobs:
       run: |
         ./v2ipdat
         ./v2sitedat
+        echo "本人自用规则文件文件" > body
+        rules="" && for rule in $(ls ips);do rules="$rules$(echo -n "$rule ")";done
+        echo "geoip可用：$(echo $rules | sed 's/ /,/g')" >> body
+        rules="" && for rule in $(ls sites);do rules="$rules$(echo -n "$rule ")";done
+        echo "geosite可用：$(echo $rules | sed 's/ /,/g')" >> body
     - name: 上传到Release
       uses: softprops/action-gh-release@v1
       with:
@@ -42,4 +47,4 @@ jobs:
             geoip.dat
             geosite.dat
           tag_name: Latest
-          body: "本人自用规则文件（文件geoip可用:cn,google,telegram;文件geosite可用:apple,bahamut,cn,epicgames,gfw,google,microsoft,netflix,ookla-speedtest,steam,telegram,youtube"
+          body_path: body
