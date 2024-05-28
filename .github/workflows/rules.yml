@@ -12,6 +12,7 @@ jobs:
       run: |
         curl -so v2ipdat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2ipdat
         curl -so v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
+        mkdir ips sites
     - name: 下载geosite规则并生成geosite.dat文件
       run: |
         curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
