@@ -1,0 +1,41 @@
+name: 生成规则文件
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 5 * * *"
+jobs:
+  build:
+    name: 生成规则文件
+    runs-on: ubuntu-latest
+    steps:
+    - name: 下载生成规则文件工具
+      run: |
+        curl -#o v2ipdat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2ipdat
+        curl -#o v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
+    - name: 下载geosite规则并生成geosite.dat文件
+        curl -# https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
+        curl -# https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
+        ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
+        rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
+        for rule in $rules;do curl -# https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
+        ./v2sitedat
+    - name: 下载geoip规则并生成geoip.dat文件
+        curl -# http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/cn
+        cat /tmp/cn | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
+        cat /tmp/cn | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
+        curl -# https://www.gstatic.com/ipranges/goog.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' > ips/google
+        curl -# https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
+        curl -# https://core.telegram.org/resources/cidr.txt > ips/telegram
+        for line in $(awk 'a[$0]++ {print NR}' ips/google | sort -r);do [ "$line" ] && sed -i "${line}d" ips/google;done
+        echo -n "$(cat ips/cn)" > ips/cn
+        echo -n "$(cat ips/google)" > ips/google
+        echo -n "$(cat ips/telegram)" > ips/telegram
+        ./v2ipdat
+    - name: 上传规则文件到Release
+      uses: softprops/action-gh-release@v1
+      with:
+          files: |
+            geoip.dat
+            geosite.dat
+          tag_name: Latest
+          body: "本人自用规则文件"
