@@ -10,6 +10,7 @@ jobs:
     steps:
     - name: 下载并生成
       run: |
+        uname
         curl -so v2ipdat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2ipdat
         curl -so v2sitedat https://raw.githubusercontent.com/gamesofts/v2ray-custom-geo/master/v2sitedat
         mkdir ips sites
