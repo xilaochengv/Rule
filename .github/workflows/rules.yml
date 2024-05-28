@@ -48,8 +48,8 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
           files: |
-            cnip.txt
-            cnipv6.txt
+            cn_ip.txt
+            cn_ipv6.txt
             geoip.dat
             geosite.dat
           tag_name: Latest
