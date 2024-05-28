@@ -17,9 +17,11 @@ jobs:
         chmod 755 gfwlist2dnsmasq.sh v2ipdat v2sitedat
     - name: 下载geoip规则
       run: |
-        curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/cn
-        cat /tmp/cn | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
-        cat /tmp/cn | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
+        curl -s http://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest > /tmp/ips
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > ips/cn
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv4/ {print $4 "/" 32-log($5)/log(2)}' > cnip.txt
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' >> ips/cn
+        cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' > cnipv6.txt
         curl -s https://www.gstatic.com/ipranges/goog.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' > ips/google
         curl -s https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
@@ -36,16 +38,19 @@ jobs:
     - name: 生成文件
       run: |
         ./v2ipdat
+        mv ips/cnip ips/cnip.txt
         ./v2sitedat
         echo "自用规则文件" > body
         rules="" && for rule in $(ls ips);do rules="$rules$(echo -n "$rule ")";done
         echo "geoip可用：$(echo $rules | sed 's/ /,/g')" >> body
         rules="" && for rule in $(ls sites);do rules="$rules$(echo -n "$rule ")";done
-        echo "geosite可用：$(echo $rules | sed 's/ /,/g')" >> body
+        echo "geosite可用：$(echo $rules | sed 's/ /,/g')" >> body        
     - name: 上传到Release
       uses: softprops/action-gh-release@v1
       with:
           files: |
+            cnip.txt
+            cnipv6.txt
             geoip.dat
             geosite.dat
           tag_name: Latest
