@@ -29,7 +29,7 @@ jobs:
         curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
         curl -s https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
         ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
-        rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
+        rules="apple bahamut epicgames google microsoft netflix ookla-speedtest rockstar steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
     - name: 生成文件
       run: |
