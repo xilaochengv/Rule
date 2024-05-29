@@ -24,6 +24,7 @@ jobs:
         cat /tmp/ips | awk -F '|' '/CN/&&/ipv6/ {print $4 "/" $5}' > cn_ipv6.txt
         curl -s https://www.gstatic.com/ipranges/goog.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' > ips/google
         curl -s https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
+        curl -s https://raw.githubusercontent.com/lingchenzi/app/main/Netflix_IP > ips/netflix
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
         for line in $(awk 'a[$0]++ {print NR}' ips/google | sort -r);do [ "$line" ] && sed -i "${line}d" ips/google;done
         for list in $(ls ips);do echo -n "$(cat ips/$list)" > ips/$list;done
