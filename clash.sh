@@ -107,9 +107,6 @@ EOF
 	cat $CLASHDIR/rules.yaml >> $CLASHDIR/config.yaml && rm -f $CLASHDIR/rules.yaml
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
-
-
-
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
 	modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
