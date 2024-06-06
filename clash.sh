@@ -107,6 +107,9 @@ EOF
 	cat $CLASHDIR/rules.yaml >> $CLASHDIR/config.yaml && rm -f $CLASHDIR/rules.yaml
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
+
+
+
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
 	modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
@@ -128,7 +131,7 @@ stop(){
 	return 0
 }
 saveconfig(){
-	echo "sublink=$sublink" > $CLASHDIR/config.txt
+	echo "sublink='$sublink'" > $CLASHDIR/config.txt
 	echo "exclude='$exclude'" >> $CLASHDIR/config.txt
 	echo "convertserver=$convertserver" >> $CLASHDIR/config.txt
 	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.txt
@@ -139,7 +142,7 @@ saveconfig(){
 	echo "dns_port=$dns_port" >> $CLASHDIR/config.txt
 	echo "dns_default='$dns_default'" >> $CLASHDIR/config.txt
 	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置只需要运行脚本并选择3-7随意一项即可马上生效" >> $CLASHDIR/config.txt
+	echo -e "\n#以下配置只需要运行脚本并选择3-7即可修改" >> $CLASHDIR/config.txt
 	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.txt
 	echo "mac_filter_mode=$mac_filter_mode" >> $CLASHDIR/config.txt
 	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.txt
