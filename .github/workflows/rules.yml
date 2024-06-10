@@ -26,6 +26,7 @@ jobs:
         curl -s https://www.gstatic.com/ipranges/cloud.json | jq --raw-output '.prefixes[].ipv4Prefix,.prefixes[].ipv6Prefix | select(. != null)' >> ips/google
         curl -s https://raw.githubusercontent.com/lingchenzi/app/main/Netflix_IP > ips/netflix
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
+        curl -skm 10 https://trackerslist.com/all.txt | awk -F / '{print $3}' | grep -oE '[0-9.]{8,16}|[0-9a-f:]{10,39}' | awk '!a[$0]++' > ips/trackers
         for line in $(awk 'a[$0]++ {print NR}' ips/google | sort -r);do [ "$line" ] && sed -i "${line}d" ips/google;done
         for list in $(ls ips);do echo -n "$(cat ips/$list)" > ips/$list;done
     - name: 下载geosite规则
@@ -33,6 +34,7 @@ jobs:
         curl -s https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf | awk -F / '{print $2}' > sites/cn
         curl -s https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt > sites/gfw
         ./gfwlist2dnsmasq.sh -o sites/gfw &> /dev/null && sed -i 's#.*=/##;s#/.*##' sites/gfw
+        curl -skm 10 https://trackerslist.com/all.txt | awk -F / '{print $3}' | grep [a-z] | grep -v ] | sed 's/:.*//' | awk '!a[$0]++' > sites/trackers
         rules="apple bahamut epicgames google microsoft netflix ookla-speedtest steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
         for rule in $(ls sites);do sed -i 's/#.*//' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
