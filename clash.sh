@@ -2,17 +2,20 @@ CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.txt ] && . $CLASHDIR/config.txt
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
 route=$(ip route | grep br-lan | awk {'print $1'})
-routes="127.0.0.0/8 $(ip route | grep br-lan | awk {'print $1'})"
+routes="127.0.0.0/8 $route"
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
-routesv6="::1/128 $(ip -6 route | grep br-lan | awk '{print $1}')"
+routesv6="::1/128 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
-[ ! "$convertserver" ] && convertserver=https://api.v1.mk
 [ ! "$exclude" ] && exclude='节点过滤|多个关键字请用|竖线分割'
+[ ! "$convertserver" ] && convertserver=https://api.v1.mk
+[ ! "$config_url" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
+[ ! "$geoip_url" ] && geoip_url=https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
+[ ! "$geosite_url" ] && geosite_url=https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
 [ ! "$redir_port" ] && redir_port=25274
 [ ! "$dashboard_port" ] && dashboard_port=6789
-[ ! "$core_ipv6" ] && core_ipv6=关
+[ ! "$core_ipv6" -o ! "$routev6" ] && core_ipv6=关
 [ ! "$dns_port" ] && dns_port=1053
 [ ! "$dns_default" ] && dns_default='223.6.6.6'
 [ ! "$dns_fallback" ] && dns_fallback='tls://1.0.0.1, tls://8.8.4.4'
@@ -23,6 +26,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$common_ports" ] && common_ports=关
 [ ! "$multiports" ] && multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
 [ ! "$wakeonlan_ports" ] && wakeonlan_ports=9
+[ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.yaml ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.yaml
 start(){
@@ -44,8 +48,8 @@ profile:
 unified-delay: true
 geodata-mode: true
 geox-url:
-  geoip: "https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat"
-  geosite: "https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat"
+  geoip: "$geoip_url"
+  geosite: "$geosite_url"
 dns:
   enable: true
   listen: :$dns_port
@@ -114,7 +118,10 @@ stop(){
 saveconfig(){
 	echo "sublink='$sublink'" > $CLASHDIR/config.txt
 	echo "exclude='$exclude'" >> $CLASHDIR/config.txt
-	echo "convertserver=$convertserver" >> $CLASHDIR/config.txt
+	echo "convertserver='$convertserver'" >> $CLASHDIR/config.txt
+	echo "config_url='$config_url'" >> $CLASHDIR/config.txt
+	echo "geoip_url='$geoip_url'" >> $CLASHDIR/config.txt
+	echo "geosite_url='$geosite_url'" >> $CLASHDIR/config.txt
 	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.txt
 	echo "redir_port=$redir_port" >> $CLASHDIR/config.txt
 	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.txt
@@ -129,6 +136,7 @@ saveconfig(){
 	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.txt
 	echo "cnipv6_route=$cnipv6_route" >> $CLASHDIR/config.txt
 	echo "common_ports=$common_ports" >> $CLASHDIR/config.txt
+	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.txt
 	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.txt
 	echo -e "\n#以下配置修改后，需要运行脚本并选择3-7随意一项才可马上生效" >> $CLASHDIR/config.txt
 	echo "multiports=$multiports" >> $CLASHDIR/config.txt
@@ -142,7 +150,7 @@ download(){
 	[ "$(echo $url | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $url | sed 's#.*#https://mirror.ghproxy.com/&#')"
 	while [ ! -f $1 ];do
 		curl -m 10 -#Lko $1 "$url"
-		[ -f $1 ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1
+		[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1
 	done
 	echo -e "\033[32m$3下载成功！\033[0m\n"
 }
@@ -160,12 +168,12 @@ update(){
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
 		sublink=$(echo $sublink | sed 's/;/\%3B/g; s|/|\%2F|g; s/?/\%3F/g; s/:/\%3A/g; s/@/\%40/g; s/=/\%3D/g; s/&/\%26/g')
-		download "$CLASHDIR/config_original.yaml" "5000" "规则文件（Clash内核）" "$convertserver/sub?target=clash&new_name=true&scv=true&udp=true&exclude=$exclude&url=$sublink&config=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini"
+		download "$CLASHDIR/config_original.yaml" "" "规则文件（Clash内核）" "$convertserver/sub?target=clash&new_name=true&scv=true&udp=true&exclude=$exclude&url=$sublink&config=$config_url"
 	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && download "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && download "$CLASHDIR/cn_ipv6.txt" "29000" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
-	[ ! -f $CLASHDIR/GeoIP.dat ] && download "$CLASHDIR/GeoIP.dat" "130000" "精简版GeoIP-CN数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat"
-	[ ! -f $CLASHDIR/GeoSite.dat ] && download "$CLASHDIR/GeoSite.dat" "1350000" "精简版GeoSite数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat"
+	[ ! -f $CLASHDIR/GeoIP.dat ] && download "$CLASHDIR/GeoIP.dat" "130000" "GeoIP数据库文件" "$geoip_url"
+	[ ! -f $CLASHDIR/GeoSite.dat ] && download "$CLASHDIR/GeoSite.dat" "1350000" "GeoSite数据库文件" "$geosite_url"
 	[ ! "$1" ] && start
 }
 startfirewall(){
@@ -291,6 +299,18 @@ startfirewall(){
 			done
 		}
 	}
+	[ "$Docker_Proxy" = "开" ] && [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && {
+		route_docker=$(ip route | grep docker | awk '{print $1}' | head -1)
+		route_dockerv6=$(ip -6 route | grep docker | awk '{print $1}')
+		iptables -t mangle -A Clash -s $route_docker -p udp -m comment --comment "udp流量进入Clash内核（$route_docker网段）" -j MARK --set-mark $redir_port
+		iptables -t nat -A Clash -s $route_docker -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker网段）" -j REDIRECT --to-port $redir_port
+		[ "$core_ipv6" = "开" ] && {
+			for route_docker6 in $route_dockerv6;do
+				ip6tables -t mangle -A Clash -s $route_dockerv6 -p udp -m comment --comment "udp流量进入Clash内核（$route_dockerv6网段）" -j MARK --set-mark $redir_port
+				ip6tables -t nat -A Clash -s $route_dockerv6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route_dockerv6网段）" -j REDIRECT --to-port $redir_port
+			done
+		}
+	}
 	[ "$wanipv4" -a "$Clash_Local_Proxy" = "开" ] && {
 		iptables -t nat -N Clash_Local_Proxy
 		[ "$core_ipv6" = "开" ] && ip6tables -t nat -N Clash_Local_Proxy
@@ -398,26 +418,36 @@ showfirewall(){
 [ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && \
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
-	saveconfig && num="$1" && ids="" && [ ! "$num" ] && {
-		echo -e "========================================================="
-		[ -s $CLASHDIR/starttime -a "$(pidof mihomo)" ] && echo -e "${BLUE}Clash-mihomo $YELLOW运行中 运存占用：$RED$(awk BEGIN'{printf "%0.2f MB",'$(cat /proc/$(pidof mihomo)/status 2> /dev/null | grep -w VmRSS | awk '{print $2}')'/1024}') $YELLOW运行时长：$RED$(date -u -d @$(($(date +%s)-$(cat $CLASHDIR/starttime))) +%H时%M分%S秒)$RESET" || echo -e "${BLUE}Clash-mihomo $RED没有运行！$RESET"
+	saveconfig && num="$1" && [ ! "$num" ] && {
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
-		echo -e "1. $GREEN重新启动 ${BLUE}Clash-mihomo$RESET"
-		echo -e "2. $RED停止运行 ${BLUE}Clash-mihomo$RESET"
+		[ -s $CLASHDIR/starttime -a "$(pidof mihomo)" ] && states="$PINK$(awk BEGIN'{printf "%0.2f MB",'$(cat /proc/$(pidof mihomo)/status 2> /dev/null | grep -w VmRSS | awk '{print $2}')'/1024}')" || states="$RED已停止"
+		echo -e "1.  $GREEN重新启动 ${BLUE}Clash-mihomo$RESET\t\t${YELLOW}运存占用：$states$RESET"
+		if [ -s $CLASHDIR/starttime -a "$(pidof mihomo)" ];then
+			TotalSeconeds=$(($(date +%s)-$(cat $CLASHDIR/starttime)))
+			Days=$(awk BEGIN'{printf "%d",'$TotalSeconeds'/60/60/24}') && [ "$Days" -gt 0 ] && Days=$Days天 || Days=""
+			Hours=$(awk BEGIN'{printf "%d\n",'$TotalSeconeds'/60/60%24}') && [ "$Hours" -gt 0 ] && Hours=$Hours小时 || Hours=""
+			Minutes=$(awk BEGIN'{printf "%d\n",'$TotalSeconeds'/60%60}') && [ "$Minutes" -gt 0 ] && Minutes=$Minutes分 || Minutes=""
+			Seconeds=$(awk BEGIN'{printf "%d\n",'$TotalSeconeds'%60}')秒
+			states="$YELLOW运行时长：$PINK$Days$Hours$Minutes$Seconeds"
+		else states="";fi
+		echo -e "2.  $RED停止运行 ${BLUE}Clash-mihomo$RESET\t\t$states$RESET"
 		[ "$common_ports" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "3. $GREEN开启$RESET/$RED关闭 $SKYBLUE仅代理常用端口\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "3.  $GREEN开启$RESET/$RED关闭 $SKYBLUE仅代理常用端口\t\t$YELLOW当前状态：$states$RESET"
 		[ "$cnip_route" = "开" -o "$cnipv6_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "4. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIP绕过内核\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "4.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIP绕过内核\t\t$YELLOW当前状态：$states$RESET"
 		[ "$Clash_Local_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "5. $GREEN开启$RESET/$RED关闭 $SKYBLUE本机流量代理\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "5.  $GREEN开启$RESET/$RED关闭 $SKYBLUE本机流量代理\t\t$YELLOW当前状态：$states$RESET"
+		[ "$Docker_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "6.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}Docker流量代理\t\t$YELLOW当前状态：$states$RESET"
 		[ "$mac_filter" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "6. $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "7.  $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
 		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
-		echo -e "7. $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
-		echo -e "8. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
-		echo -e "9. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
+		echo -e "8.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "9.  $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
+		echo -e "10. $YELLOW更新 $SKYBLUE订阅转换文件$RESET"
+		echo -e "11. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
 		echo "---------------------------------------------------------"
 		echo -ne "\n"
 		read -p "请输入对应选项的数字 > " num
@@ -453,19 +483,26 @@ main(){
 			[ "$Clash_Local_Proxy" = "开" ] && Clash_Local_Proxy=关 || Clash_Local_Proxy=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
 		6)
+			if [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ];then
+				[ "$Docker_Proxy" = "开" ] && Docker_Proxy=关 || Docker_Proxy=开
+				[ "$(pidof mihomo)" ] && startfirewall;
+			else echo -e "\n$RED没有检测到 ${BLUE}Docker $RED正在运行！$RESET\n" && sleep 1;fi;main;;
+		7)
 			[ "$mac_filter" = "开" ] && mac_filter=关 || mac_filter=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
-		7)
+		8)
 			[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
-		8)showfirewall;;
-		9)update;;
+		9)showfirewall;;
+		10)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+		11)update;;
 	esac
 }
 case "$1" in
 	1|start)start;;
 	2|stop)stop;;
-	8|showfirewall)showfirewall;;
-	9|update)update;;
+	9|showfirewall)showfirewall;;
+	10|config_update)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+	11|update)update;;
 	*)main;;
 esac
