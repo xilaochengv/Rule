@@ -238,8 +238,26 @@ startfirewall(){
 	[ "$mac_filter" = "开" ] && {
 		if [ "$(grep -v '^ *#' $CLASHDIR/maclist 2> /dev/null)" ];then
 			while read LINE;do
-				mac=$(echo $LINE | grep -v '^ *#' | awk '{print $1}')
+				ip=$(echo $LINE | grep -v '^ *#' | awk '{print $1}' | grep '\.')
+				mac=$(echo $LINE | grep -v '^ *#' | awk '{print $1}' | grep ':')
 				device=$(echo $LINE | grep -v '^ *#' | awk '{for(i=2;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/ $//');[ ! "$device" ] && device=设备名称未填写
+				[ "$ip" ] && [ "$ip" != "$localip" ] && {
+					if [ "$mac_filter_mode" = "白名单" ];then
+						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
+						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+						[ "$core_ipv6" = "开" ] && {
+							ip6tables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
+							ip6tables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+						}
+					else
+						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+						[ "$core_ipv6" = "开" ] && {
+							ip6tables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+							ip6tables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+						}
+					fi
+				}
 				[ "$mac" ] && {
 					if [ "$mac_filter_mode" = "白名单" ];then
 						iptables -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
@@ -259,7 +277,7 @@ startfirewall(){
 				}
 			done < $CLASHDIR/maclist
 		else
-			[ -s $CLASHDIR/maclist ] || echo -e "#aa:bb:cc:dd:ee:ff\t模板例子\n#设备MAC地址\t\t\t设备名称（可填可不填）" > $CLASHDIR/maclist
+			[ -s $CLASHDIR/maclist ] || echo -e "#黑白名单列表（可填IP或MAC地址）\n#192.168.1.100\t我的电脑\n#aa:bb:cc:dd:ee:ff\t设备名称（可填可不填）" > $CLASHDIR/maclist
 			echo -e "\n$RED常用设备名单无内容！请配置 $BLUE$CLASHDIR/maclist$RED 文件！$RESET" && sleep 2
 		fi
 	}
