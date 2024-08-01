@@ -23,7 +23,6 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$common_ports" ] && common_ports=关
 [ ! "$multiports" ] && multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
 [ ! "$wakeonlan_ports" ] && wakeonlan_ports=9
-[ ! "$dns_server_ip_filter" ] && dns_server_ip_filter='1.0.0.1 8.8.4.4'
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.yaml ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.yaml
 start(){
@@ -82,22 +81,7 @@ tun:
   device: utun
   auto-route: false
   udp-timeout: 60
-proxies:
-  - type: vless
-    name: CloudFlare
-    server: your-worker-domain.com
-    port: 443
-    uuid: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-    network: ws
-    tls: true
-    udp: true
-    sni: your-worker-domain.com
-    client-fingerprint: chrome
-    ws-opts:
-      path: "/?ed=2048"
-      headers:
-        host: your-worker-domain.com
-$(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml | tail +2)
+$(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml | tail +1)
 EOF
 	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i 's/GEOIP.*/&,no-resolve/' $CLASHDIR/rules.yaml
 	LINES=$(awk -F , '{print $1","$2}' $CLASHDIR/rules.yaml | sed 's/.*- //' | awk 'a[$0]++ {print NR}')
