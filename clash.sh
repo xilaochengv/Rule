@@ -16,6 +16,9 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$redir_port" ] && redir_port=25274
 [ ! "$dashboard_port" ] && dashboard_port=6789
 [ ! "$core_ipv6" -o ! "$routev6" ] && core_ipv6=关
+[ ! "$dns_ipv6" -o ! "$routev6" ] && dns_ipv6=关
+[ ! "$dns_hijack" ] && dns_hijack=关
+[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat ${0%/*}/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
 [ ! "$dns_default" ] && dns_default='223.6.6.6'
 [ ! "$dns_fallback" ] && dns_fallback='tls://1.0.0.1, tls://8.8.4.4'
@@ -31,14 +34,15 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ -s $CLASHDIR/custom_rules.yaml ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.yaml
 start(){
 	stop start && update missingfiles
-	[ "$core_ipv6" = "开" ] && ipv6=true || ipv6=false
+	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
+	[ "$dns_ipv6" = "开" ] && ipv6_dns=true || ipv6_dns=false
 	cat > $CLASHDIR/config.yaml << EOF
 redir-port: $redir_port
 allow-lan: true
 authentication:
   - "username:password"
 log-level: debug
-ipv6: $ipv6
+ipv6: $ipv6_core
 keep-alive-interval: 30
 find-process-mode: "off"
 external-controller: :$dashboard_port
@@ -53,7 +57,7 @@ geox-url:
 dns:
   enable: true
   listen: :$dns_port
-  ipv6: $ipv6
+  ipv6: $ipv6_dns
   enhanced-mode: redir-host
   default-nameserver:
     - 223.6.6.6
@@ -127,10 +131,13 @@ saveconfig(){
 	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.txt
 	echo "dashboard_port=$dashboard_port" >> $CLASHDIR/config.txt
 	echo "core_ipv6=$core_ipv6" >> $CLASHDIR/config.txt
+	echo "dns_ipv6=$dns_ipv6" >> $CLASHDIR/config.txt
 	echo "dns_port=$dns_port" >> $CLASHDIR/config.txt
 	echo "dns_default='$dns_default'" >> $CLASHDIR/config.txt
 	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置只需要运行脚本并选择3-7即可修改" >> $CLASHDIR/config.txt
+	echo -e "\n#以下配置只需要运行脚本并选择3-9即可修改" >> $CLASHDIR/config.txt
+	echo "dns_hijack=$dns_hijack" >> $CLASHDIR/config.txt
+	echo "dnsipv6_hijack=$dnsipv6_hijack" >> $CLASHDIR/config.txt
 	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.txt
 	echo "mac_filter_mode=$mac_filter_mode" >> $CLASHDIR/config.txt
 	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.txt
@@ -138,11 +145,11 @@ saveconfig(){
 	echo "common_ports=$common_ports" >> $CLASHDIR/config.txt
 	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.txt
 	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置修改后，需要运行脚本并选择3-7随意一项才可马上生效" >> $CLASHDIR/config.txt
+	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.txt
 	echo "multiports=$multiports" >> $CLASHDIR/config.txt
 	echo "wakeonlan_ports=$wakeonlan_ports" >> $CLASHDIR/config.txt
 	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.txt
-	[ ! "$sublink" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.txt $RED文件中填写好订阅链接！$RESET" && exit
+	[ ! "$sublink" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.txt $RED文件第一行中填写好订阅链接！$RESET" && exit
 	return 0
 }
 download(){
@@ -172,8 +179,8 @@ update(){
 	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && download "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && download "$CLASHDIR/cn_ipv6.txt" "29000" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
-	[ ! -f $CLASHDIR/GeoIP.dat ] && download "$CLASHDIR/GeoIP.dat" "130000" "GeoIP数据库文件" "$geoip_url"
-	[ ! -f $CLASHDIR/GeoSite.dat ] && download "$CLASHDIR/GeoSite.dat" "1350000" "GeoSite数据库文件" "$geosite_url"
+	[ ! -f $CLASHDIR/GeoIP.dat ] && download "$CLASHDIR/GeoIP.dat" "" "GeoIP数据库文件" "$geoip_url"
+	[ ! -f $CLASHDIR/GeoSite.dat ] && download "$CLASHDIR/GeoSite.dat" "" "GeoSite数据库文件" "$geosite_url"
 	[ ! "$1" ] && start
 }
 startfirewall(){
@@ -311,6 +318,22 @@ startfirewall(){
 			done
 		}
 	}
+	[ "$dns_hijack" = "开" ] && {
+		iptables -t nat -N Clash_DNS
+		iptables -t nat -A PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		iptables -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
+		iptables -t nat -A Clash_DNS -d $localip -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		iptables -t nat -A Clash_DNS -d 127.0.0.1 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+	}
+	[ "$dnsipv6_hijack" = "开" ] && {
+		ip6tables -t nat -N Clash_DNS
+		ip6tables -t nat -A PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		ip6tables -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
+		for route6 in $routev6;do
+			ip6tables -t nat -A Clash_DNS -d $route6 -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		done
+		ip6tables -t nat -A Clash_DNS -d ::1/128 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+	}
 	[ "$wanipv4" -a "$Clash_Local_Proxy" = "开" ] && {
 		iptables -t nat -N Clash_Local_Proxy
 		[ "$core_ipv6" = "开" ] && ip6tables -t nat -N Clash_Local_Proxy
@@ -351,6 +374,10 @@ stopfirewall(){
 	while [ "$(ip6tables -t nat -S OUTPUT | grep 常用端口)" ];do
 		eval ip6tables -t nat $(ip6tables -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null
 	done
+	ip6tables -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	ip6tables -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	ip6tables -t nat -F Clash_DNS 2> /dev/null
+	ip6tables -t nat -X Clash_DNS 2> /dev/null
 	ip6tables -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
 	ip6tables -t nat -F Clash_Local_Proxy 2> /dev/null
 	ip6tables -t nat -X Clash_Local_Proxy 2> /dev/null
@@ -372,6 +399,10 @@ stopfirewall(){
 	while [ "$(iptables -t nat -S OUTPUT | grep 常用端口)" ];do
 		eval iptables -t nat $(iptables -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null
 	done
+	iptables -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	iptables -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	iptables -t nat -F Clash_DNS 2> /dev/null
+	iptables -t nat -X Clash_DNS 2> /dev/null
 	iptables -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
 	iptables -t nat -F Clash_Local_Proxy 2> /dev/null
 	iptables -t nat -X Clash_Local_Proxy 2> /dev/null
@@ -398,7 +429,10 @@ showfirewall(){
 	}
 	echo -e "\n--------------------------------------------NAT---------------------------------------------" && {
 		[ "$(iptables -t nat -S PREROUTING | grep Clash)" ] && iptables -t nat -nvL PREROUTING && echo && iptables -t nat -nvL Clash
-		[ "$(iptables -t nat -S OUTPUT | grep Clash)" ] && echo && iptables -t nat -nvL OUTPUT && echo && iptables -t nat -nvL Clash_Local_Proxy
+		[ "$(iptables -t nat -S OUTPUT | grep Clash)" ] && echo && iptables -t nat -nvL OUTPUT && echo && {
+			iptables -t nat -nvL Clash_DNS 2> /dev/null && echo
+			iptables -t nat -nvL Clash_Local_Proxy 2> /dev/null
+		}
 	}
 	echo -e "\n-------------------------------------------FILTER-------------------------------------------" && {
 		[ "$(iptables -S FORWARD | grep utun)" ] && iptables -nvL FORWARD
@@ -407,8 +441,11 @@ showfirewall(){
 		[ "$(ip6tables -t mangle -S PREROUTING | grep Clash)" ] && ip6tables -t mangle -nvL PREROUTING && echo && ip6tables -t mangle -nvL Clash
 	}
 	echo -e "\n-----------------------------------------IPv6  NAT------------------------------------------" && {
-		[ "$(ip6tables -t nat -S PREROUTING | grep Clash)" ] && ip6tables -t nat -nvL PREROUTING && echo && ip6tables -t nat -nvL Clash
-		[ "$(ip6tables -t nat -S OUTPUT | grep Clash)" ] && echo && ip6tables -t nat -nvL OUTPUT && echo && ip6tables -t nat -nvL Clash_Local_Proxy
+		[ "$(ip6tables -t nat -S PREROUTING | grep Clash)" ] && ip6tables -t nat -nvL PREROUTING && echo && ip6tables -t nat -nvL Clash 2> /dev/null
+		[ "$(ip6tables -t nat -S OUTPUT | grep Clash)" ] && echo && ip6tables -t nat -nvL OUTPUT && echo && {
+			ip6tables -t nat -nvL Clash_DNS 2> /dev/null && echo
+			ip6tables -t nat -nvL Clash_Local_Proxy 2> /dev/null
+		}
 	}
 	echo -e "\n----------------------------------------IPv6  FILTER----------------------------------------" && {
 		[ "$(ip6tables -S FORWARD | grep utun)" ] && ip6tables -nvL FORWARD
@@ -441,13 +478,15 @@ main(){
 		echo -e "5.  $GREEN开启$RESET/$RED关闭 $SKYBLUE本机流量代理\t\t$YELLOW当前状态：$states$RESET"
 		[ "$Docker_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
 		echo -e "6.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}Docker流量代理\t\t$YELLOW当前状态：$states$RESET"
+		[ "$dns_hijack" = "开" -o "$dnsipv6_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "7.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS流量劫持\t\t$YELLOW当前状态：$states$RESET"
 		[ "$mac_filter" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "7.  $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "8.  $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
 		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
-		echo -e "8.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
-		echo -e "9.  $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
-		echo -e "10. $YELLOW更新 $SKYBLUE订阅转换文件$RESET"
-		echo -e "11. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
+		echo -e "9.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "10. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
+		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件$RESET"
+		echo -e "12. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
 		echo "---------------------------------------------------------"
 		echo -ne "\n"
 		read -p "请输入对应选项的数字 > " num
@@ -485,24 +524,47 @@ main(){
 		6)
 			if [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ];then
 				[ "$Docker_Proxy" = "开" ] && Docker_Proxy=关 || Docker_Proxy=开
-				[ "$(pidof mihomo)" ] && startfirewall;
+				[ "$(pidof mihomo)" ] && startfirewall
 			else echo -e "\n$RED没有检测到 ${BLUE}Docker $RED正在运行！$RESET\n" && sleep 1;fi;main;;
 		7)
+			echo "=========================================================" && dnshijacknum=""
+			echo "请输入你的选项："
+			echo "---------------------------------------------------------"
+			[ "$dns_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+			echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS IPv4流量劫持\t\t$YELLOW当前状态：$states$RESET"
+			[ "$dnsipv6_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS IPv6流量劫持\t\t$YELLOW当前状态：$states$RESET"
+			echo "---------------------------------------------------------"
+			echo -e "0. 返回上一页"
+			echo -ne "\n"
+			read -p "请输入对应选项的数字 > " dnshijacknum
+			case "$dnshijacknum" in
+				1)
+					[ "$dns_hijack" = "开" ] && dns_hijack=关 || dns_hijack=开
+					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
+				2)
+					if [ "$routev6" -a "$dns_ipv6" = "开" -a "$(cat ${0%/*}/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" = "true" ];then
+						[ "$dnsipv6_hijack" = "开" ] && dnsipv6_hijack=关 || dnsipv6_hijack=开
+						[ "$(pidof mihomo)" ] && startfirewall
+					else echo -e "\n$RED当前无法修改 DNS IPv6 流量劫持选项！$RESET\n" && sleep 1;fi;main $num;;
+				0)main;;
+			esac;;
+		8)
 			[ "$mac_filter" = "开" ] && mac_filter=关 || mac_filter=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
-		8)
+		9)
 			[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
-		9)showfirewall;;
-		10)rm -f $CLASHDIR/config_original.yaml;stop && start;;
-		11)update;;
+		10)showfirewall;;
+		11)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+		12)update;;
 	esac
 }
 case "$1" in
 	1|start)start;;
 	2|stop)stop;;
-	9|showfirewall)showfirewall;;
-	10|config_update)rm -f $CLASHDIR/config_original.yaml;stop && start;;
-	11|update)update;;
+	10|showfirewall)showfirewall;;
+	11|config_update)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+	12|update)update;;
 	*)main;;
 esac
