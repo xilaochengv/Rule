@@ -1,4 +1,4 @@
-CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.txt ] && . $CLASHDIR/config.txt
+CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
 route=$(ip route | grep br-lan | awk {'print $1'})
@@ -8,17 +8,18 @@ routesv6="::1/128 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
+[ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割'
 [ ! "$exclude" ] && exclude='节点过滤|多个关键字请用|竖线分割'
-[ ! "$convertserver" ] && convertserver=https://api.v1.mk
-[ ! "$config_url" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
-[ ! "$geoip_url" ] && geoip_url=https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
-[ ! "$geosite_url" ] && geosite_url=https://mirror.ghproxy.com/https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
+[ ! "$udp_support" ] && udp_support=关
+[ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
+[ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
+[ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
 [ ! "$redir_port" ] && redir_port=25274
 [ ! "$dashboard_port" ] && dashboard_port=6789
 [ ! "$core_ipv6" -o ! "$routev6" ] && core_ipv6=关
 [ ! "$dns_ipv6" -o ! "$routev6" ] && dns_ipv6=关
 [ ! "$dns_hijack" ] && dns_hijack=关
-[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat ${0%/*}/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
+[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
 [ ! "$dns_default" ] && dns_default='223.6.6.6'
 [ ! "$dns_fallback" ] && dns_fallback='tls://1.0.0.1, tls://8.8.4.4'
@@ -31,13 +32,18 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$wakeonlan_ports" ] && wakeonlan_ports=9
 [ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
-[ -s $CLASHDIR/custom_rules.yaml ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.yaml
+[ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
+[ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://gh.ddlc.top\nhttps://mirror.ghproxy.com\nhttps://hub.gitmirror.com" > $CLASHDIR/mirror_server.ini
+[ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
+Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
+[ ! -f $CLASHDIR/mihomo -a $Available -lt 17000 ] && echo -e "$RED当前分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
 start(){
 	stop start && update missingfiles
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
 	[ "$dns_ipv6" = "开" ] && ipv6_dns=true || ipv6_dns=false
 	cat > $CLASHDIR/config.yaml << EOF
 redir-port: $redir_port
+mixed-port: $(($redir_port+1))
 allow-lan: true
 authentication:
   - "username:password"
@@ -52,8 +58,8 @@ profile:
 unified-delay: true
 geodata-mode: true
 geox-url:
-  geoip: "$geoip_url"
-  geosite: "$geosite_url"
+  geoip: "$(echo $mirrorserver | sed 's/[^/]$/&\//')$geoip_url"
+  geosite: "$(echo $mirrorserver | sed 's/[^/]$/&\//')$geosite_url"
 dns:
   enable: true
   listen: :$dns_port
@@ -89,13 +95,11 @@ tun:
   device: utun
   auto-route: false
   udp-timeout: 60
-$(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml | tail +1)
+$(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml)
 EOF
 	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i 's/GEOIP.*/&,no-resolve/' $CLASHDIR/rules.yaml
-	LINES=$(awk -F , '{print $1","$2}' $CLASHDIR/rules.yaml | sed 's/.*- //' | awk 'a[$0]++ {print NR}')
-	[ "$LINES" ] && for LINE in $(printf '%05d\n' $LINES | sort -r);do sed -i "${LINE}d" $CLASHDIR/rules.yaml;done
 	spaces=$(sed -n 1p $CLASHDIR/rules.yaml | grep -oE '^ *- *')
-	sed -n '/^[^#]/p' $CLASHDIR/custom_rules.yaml | sed "s/.*/$spaces&\t#自定义规则/" >> $CLASHDIR/config.yaml
+	sed -n '/^[^#]/p' $CLASHDIR/custom_rules.ini | sed "s/.*/$spaces&\t#自定义规则/" >> $CLASHDIR/config.yaml
 	cat $CLASHDIR/rules.yaml >> $CLASHDIR/config.yaml && rm -f $CLASHDIR/rules.yaml
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
@@ -114,73 +118,160 @@ stop(){
 	killall mihomo 2> /dev/null
 	stopfirewall && rm -f $CLASHDIR/starttime
 	while [ "$(ps | grep -v grep | grep autooc)" ];do killpid $(ps | grep -v grep | grep autooc | head -1 | awk '{print $1}');done
-	[ ! "$1" ] && echo -e "\n${BLUE}Clash-mihomo $RED已停止服务！$RESET\n"
+	[ ! "$1" ] && echo -e "\n${BLUE}Clash-mihomo $RED已停止服务！$RESET"
 	#AX9000若QOS功能开启则恢复加载数据小包加速管理中心模块
 	[ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && [ -d /sys/module/shortcut_fe ] && insmod shortcut-fe-cm &> /dev/null
 	return 0
 }
 saveconfig(){
-	echo "sublink='$sublink'" > $CLASHDIR/config.txt
-	echo "exclude='$exclude'" >> $CLASHDIR/config.txt
-	echo "convertserver='$convertserver'" >> $CLASHDIR/config.txt
-	echo "config_url='$config_url'" >> $CLASHDIR/config.txt
-	echo "geoip_url='$geoip_url'" >> $CLASHDIR/config.txt
-	echo "geosite_url='$geosite_url'" >> $CLASHDIR/config.txt
-	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.txt
-	echo "redir_port=$redir_port" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.txt
-	echo "dashboard_port=$dashboard_port" >> $CLASHDIR/config.txt
-	echo "core_ipv6=$core_ipv6" >> $CLASHDIR/config.txt
-	echo "dns_ipv6=$dns_ipv6" >> $CLASHDIR/config.txt
-	echo "dns_port=$dns_port" >> $CLASHDIR/config.txt
-	echo "dns_default='$dns_default'" >> $CLASHDIR/config.txt
-	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置只需要运行脚本并选择3-9即可修改" >> $CLASHDIR/config.txt
-	echo "dns_hijack=$dns_hijack" >> $CLASHDIR/config.txt
-	echo "dnsipv6_hijack=$dnsipv6_hijack" >> $CLASHDIR/config.txt
-	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.txt
-	echo "mac_filter_mode=$mac_filter_mode" >> $CLASHDIR/config.txt
-	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.txt
-	echo "cnipv6_route=$cnipv6_route" >> $CLASHDIR/config.txt
-	echo "common_ports=$common_ports" >> $CLASHDIR/config.txt
-	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.txt
-	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.txt
-	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.txt
-	echo "multiports=$multiports" >> $CLASHDIR/config.txt
-	echo "wakeonlan_ports=$wakeonlan_ports" >> $CLASHDIR/config.txt
-	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.txt
-	[ ! "$sublink" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.txt $RED文件第一行中填写好订阅链接！$RESET" && exit
+	echo "sublink='$sublink'" > $CLASHDIR/config.ini
+	echo "exclude='$exclude'" >> $CLASHDIR/config.ini
+	echo "udp_support=$udp_support" >> $CLASHDIR/config.ini
+	echo "mirrorserver='$mirrorserver'" >> $CLASHDIR/config.ini
+	echo "config_url='$config_url'" >> $CLASHDIR/config.ini
+	echo "geoip_url='$geoip_url'" >> $CLASHDIR/config.ini
+	echo "geosite_url='$geosite_url'" >> $CLASHDIR/config.ini
+	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.ini
+	echo "redir_port=$redir_port" >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.ini
+	echo "dashboard_port=$dashboard_port" >> $CLASHDIR/config.ini
+	echo "core_ipv6=$core_ipv6" >> $CLASHDIR/config.ini
+	echo "dns_ipv6=$dns_ipv6" >> $CLASHDIR/config.ini
+	echo "dns_port=$dns_port" >> $CLASHDIR/config.ini
+	echo "dns_default='$dns_default'" >> $CLASHDIR/config.ini
+	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置只需要运行脚本并选择3-9即可修改" >> $CLASHDIR/config.ini
+	echo "dns_hijack=$dns_hijack" >> $CLASHDIR/config.ini
+	echo "dnsipv6_hijack=$dnsipv6_hijack" >> $CLASHDIR/config.ini
+	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.ini
+	echo "mac_filter_mode=$mac_filter_mode" >> $CLASHDIR/config.ini
+	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.ini
+	echo "cnipv6_route=$cnipv6_route" >> $CLASHDIR/config.ini
+	echo "common_ports=$common_ports" >> $CLASHDIR/config.ini
+	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.ini
+	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.ini
+	echo "multiports=$multiports" >> $CLASHDIR/config.ini
+	echo "wakeonlan_ports=$wakeonlan_ports" >> $CLASHDIR/config.ini
+	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
+	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
 	return 0
 }
-download(){
-	url=$4 && echo -e "$YELLOW下载$3······$RESET" && rm -f $1
-	[ "$(echo $url | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $url | sed 's#.*#https://mirror.ghproxy.com/&#')"
-	while [ ! -f $1 ];do
-		curl -m 10 -#Lko $1 "$url"
-		[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1
+githubdownload(){
+	url=$4 && [ "$(echo $url | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $url | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	rm -f $1 && [ "$3" ] && echo -e "\n$YELLOW下载$3 $SKYBLUE$url $YELLOW······$RESET \c"
+	[ "$(curl -m 10 -sLko $1 "$url" -w "%{http_code}")" != "200" ] && rm -f $1 && return 1
+	[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1 && return 1
+	[ "$3" ] && echo -e "$GREEN下载成功！$RESET";return 0
+}
+subconver(){
+	rm -f $CLASHDIR/proxies_temp.yaml $CLASHDIR/proxy_groups_temp.yaml $CLASHDIR/rules_temp.yaml $CLASHDIR/config_temp.ini $CLASHDIR/sub_original $CLASHDIR/sub_temp
+	for url in $(echo $sublink | sed 's/|/ /g');do
+		[ "$(echo $url | grep //)" ] && echo -e "\n$YELLOW下载订阅链接 $SKYBLUE$url $YELLOW···$RESET \c" && curl -skLo $CLASHDIR/sub_original -m 60 $url
+		if [ $? = 0 ];then base64 -d $CLASHDIR/sub_original >> $CLASHDIR/sub_temp && echo -e "$GREEN下载成功！$RESET";else echo -e "$RED下载失败！已自动退出脚本$RESET";exit;fi
 	done
-	echo -e "\033[32m$3下载成功！\033[0m\n"
+	[ "$(echo $config_url | grep //)" ] && githubdownload "$CLASHDIR/config_temp.ini" "" "订阅配置文件" "$config_url"
+	[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+	[ ! "$(grep ^proxies: $CLASHDIR/proxies_temp.yaml 2> /dev/null)" ] && echo "proxies:" > $CLASHDIR/proxies_temp.yaml
+	while read LINE;do
+		password=""
+		type=$(echo $LINE | cut -d : -f 1)
+		server=$(echo $LINE | grep -o '@.*:' | sed 's/[@:]//g')
+		port=$(echo $LINE | grep -oE ':[0-9]{1,5}' | sed 's/://')
+		passwordtemp=$(echo $LINE | grep -o '/.*@' | sed 's/[/@]//g')
+		sni=$(echo $LINE | grep -oE 'sni=.*[#&]' | sed 's/sni=//;s/[#&].*//')
+		name=$(printf $(echo $LINE | cut -d \# -f 2 | sed 's/\\/\\\\/g;s/\(%\)\([0-9a-fA-F][0-9a-fA-F]\)/\\x\2/g') | sed "s/.$//")
+		[ "$type" = "trojan" ] && password=", password: $passwordtemp"
+		[ "$type" = "hysteria2" ] && password=", password: $passwordtemp, auth: $passwordtemp"
+		[ "$type" = "ss" ] && passwordtemp=$(echo $passwordtemp | base64 -d 2> /dev/null) && [ $? = 0 ] && password=", cipher: $(echo $passwordtemp | cut -d : -f 1), password: $(echo $passwordtemp | cut -d : -f 2)"
+		[ "$udp_support" = "开" ] && udp=", udp: true"
+		[ "$sni" ] && sni=", sni: $sni, skip-cert-verify: true"
+		if [ "$(echo $name | grep -E "$exclude")" ];then echo -e "\n$YELLOW过滤节点：$PINK$name $YELLOW根据关键字自动过滤$RESET";else [ "$password" ] && echo "  - {name: $name, server: $server, port: $port, client-fingerprint: chrome, type: $type$password$sni$udp}" >> $CLASHDIR/proxies_temp.yaml && echo -e "\n$GREEN添加节点：$PINK$name $GREEN成功！节点类型：$PINK$type$RESET" && proxies="$proxies\n$name" || echo -e "\n$RED添加节点：$PINK$name $RED失败！已自动过滤$RESET";fi
+	done < $CLASHDIR/sub_temp
+	[ ! "$(grep ^proxy-groups: $CLASHDIR/proxy_groups_temp.yaml 2> /dev/null)" ] && echo "proxy-groups:" > $CLASHDIR/proxy_groups_temp.yaml
+	cat $CLASHDIR/config_temp.ini | grep ^custom_proxy_group | while read LINE;do
+		name=$(echo $LINE | cut -d = -f 2 | awk -F \` '{print $1}')
+		type=$(echo $LINE | cut -d = -f 2 | awk -F \` '{print $2}')
+		groups=$(echo $LINE | cut -d = -f 2 | awk -F \` '{$1="";$2="";print $0}' | sed 's/^  //;s/\.\*/[]allproxy/;s/ /\#/g;s/\[]/ &/g;s/(.*/ &/')
+		echo "  - name: $name" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "\n$GREEN代理组：$PINK$name $GREEN包含节点（代理组）：$RESET\c"
+		echo "    type: $type" >> $CLASHDIR/proxy_groups_temp.yaml
+		[ "$(echo $LINE | grep //)" ] && {
+			echo "    url: $(echo $LINE | cut -d \` -f 4)" >> $CLASHDIR/proxy_groups_temp.yaml
+			echo "    interval: $(echo $LINE | cut -d \` -f 5 | awk -F , '{print $1}')" >> $CLASHDIR/proxy_groups_temp.yaml
+			echo "    tolerance: $(echo $LINE | cut -d \` -f 5 | awk -F , '{print $3}')" >> $CLASHDIR/proxy_groups_temp.yaml
+		}
+		echo "    proxies:" >> $CLASHDIR/proxy_groups_temp.yaml
+		for group in $groups;do
+			if [ "$(echo $group | grep allproxy)" ];then
+				echo -e "$proxies" | while read LINE;do
+					[ "$LINE" ] && echo "      - $LINE" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$LINE$RESET \c"
+				done
+			elif [ "$(echo $group | grep \()" ];then
+				echo -e "$proxies" | grep -E "$(echo $group | sed 's/[()]//g')" | while read LINE;do echo "      - $LINE" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$LINE$RESET \c";done
+			else
+				echo "      - $group" | grep -v // | sed 's/\[]//g;s/#/ /g;s/ $//g' >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$(echo $group | grep -v // | sed 's/\[]//g;s/#/ /g;s/ $//g')$RESET \c"
+			fi
+		done;echo
+	done
+	echo "rules:" >> $CLASHDIR/proxy_groups_temp.yaml
+	for group in $(sed -n '/  - name: /p' $CLASHDIR/proxy_groups_temp.yaml | sed 's/ /#/g');do
+		[ ! "$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/p" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | grep -E '^      -')" ] && {
+			delgroupendline=$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/=" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | tail -1)
+			delgroupstartline=$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/=" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | head -1)
+			sed -i "$delgroupstartline,$delgroupendline d;/$(echo $group | awk -F \# '{print $NF}')/d" $CLASHDIR/proxy_groups_temp.yaml
+			echo -e "\n$YELLOW代理组：$PINK$(echo $group | awk -F \# '{print $NF}') $YELLOW内无内容，已自动过滤$RESET"
+		}
+	done
+	[ -s $CLASHDIR/config_temp.ini ] && cat $CLASHDIR/config_temp.ini | grep ^ruleset | while read LINE;do
+		[ "$(echo $LINE | grep -oiE 'geoip.*|geosite.*|match.*|final.*')" ] && echo "  - $(echo $LINE | grep -oiE 'geoip.*|geosite.*|match.*|final.*' | sed 's/final/MATCH/i'),$(echo $LINE | cut -d = -f 2 | awk -F , '{print $1}')" >> $CLASHDIR/rules_temp.yaml
+		[ "$(echo $LINE | grep //)" ] && {
+			rulesurl=$(echo $LINE | awk -F , '{print $2}') && [ "$(echo $rulesurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && rulesurl="$(echo $rulesurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+			groupsname=$(echo $LINE | cut -d = -f 2 | awk -F , '{print $1}')
+			echo -e "\n$YELLOW下载 $BLUE$groupsname $YELLOW代理组规则 $SKYBLUE$rulesurl $YELLOW···$RESET \c"
+			curl -skLm 5 $rulesurl -w "%{http_code}\n" | grep -vE '^$|\#|USER-AGENT|URL-REGEX' | sed "s/,no-resolve//;s/.*/  - &,$groupsname/" | sed 's/IP-CIDR.*/&,no-resolve/' >> $CLASHDIR/rules_temp.yaml
+			if [ "$(sed -n '$p' $CLASHDIR/rules_temp.yaml | grep "200")" ];then
+				echo -e "$GREEN下载成功！$RESET"
+			else
+				echo -e "$RED下载失败！$RESET"
+			fi
+			sed -i '$d' $CLASHDIR/rules_temp.yaml
+		}
+	done
+	for char in proxies proxy_groups rules;do cat $CLASHDIR/${char}_temp.yaml >> $CLASHDIR/config_original.yaml;done
+	rm -f $CLASHDIR/proxies_temp.yaml $CLASHDIR/proxy_groups_temp.yaml $CLASHDIR/rules_temp.yaml $CLASHDIR/config_temp.ini $CLASHDIR/sub_original $CLASHDIR/sub_temp
+	echo -e "\n$YELLOW订阅链接本地转换结束$RESET"
 }
 update(){
 	[ ! "$1" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/config_original.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat $CLASHDIR/mihomo
 	[ ! -d $CLASHDIR/ui ] && {
-		download "/tmp/dashboard" "300000" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
+		githubdownload "/tmp/dashboard" "300000" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 		mkdir -m 755 $CLASHDIR/ui && tar -zxf /tmp/dashboard -C $CLASHDIR/ui && rm -f /tmp/dashboard
 		sed -i "s/9090/$dashboard_port/g;s/127.0.0.1/$localip/g" $CLASHDIR/ui/assets/index.628acf3b.js
 	}
 	[ ! -f $CLASHDIR/mihomo ] && {
 		while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep tag_name | cut -f4 -d '"');done
-		download "/tmp/mihomo.gz" "9500000" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
-		rm -f $CLASHDIR/mihomo && gzip -d /tmp/mihomo.gz && mv -f /tmp/mihomo $CLASHDIR/mihomo && chmod 755 $CLASHDIR/mihomo
+		githubdownload "/tmp/mihomo.gz" "9500000" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && mv -f /tmp/mihomo $CLASHDIR/mihomo && chmod 755 $CLASHDIR/mihomo
 	}
-	[ ! -f $CLASHDIR/config_original.yaml ] && {
-		sublink=$(echo $sublink | sed 's/;/\%3B/g; s|/|\%2F|g; s/?/\%3F/g; s/:/\%3A/g; s/@/\%40/g; s/=/\%3D/g; s/&/\%26/g')
-		download "$CLASHDIR/config_original.yaml" "" "规则文件（Clash内核）" "$convertserver/sub?target=clash&new_name=true&scv=true&udp=true&exclude=$exclude&url=$sublink&config=$config_url"
+	[ ! -f $CLASHDIR/config_original.yaml ] && subconver
+	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && {
+		githubdownload "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && download "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
-	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && download "$CLASHDIR/cn_ipv6.txt" "29000" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
-	[ ! -f $CLASHDIR/GeoIP.dat ] && download "$CLASHDIR/GeoIP.dat" "" "GeoIP数据库文件" "$geoip_url"
-	[ ! -f $CLASHDIR/GeoSite.dat ] && download "$CLASHDIR/GeoSite.dat" "" "GeoSite数据库文件" "$geosite_url"
+	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && {
+		githubdownload "$CLASHDIR/cn_ipv6.txt" "29000" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+	}
+	[ ! -f $CLASHDIR/GeoIP.dat ] && {
+		githubdownload "$CLASHDIR/GeoIP.dat" "" "GeoIP数据库文件" "$geoip_url"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+	}
+	[ ! -f $CLASHDIR/GeoSite.dat ] && {
+		githubdownload "$CLASHDIR/GeoSite.dat" "" "GeoSite数据库文件" "$geosite_url"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+	}
 	[ ! "$1" ] && start
 }
 startfirewall(){
@@ -251,7 +342,7 @@ startfirewall(){
 		ip6tables -t nat -A Clash -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
 	}
 	[ "$mac_filter" = "开" ] && {
-		if [ "$(grep -v '^ *#' $CLASHDIR/maclist 2> /dev/null)" ];then
+		if [ "$(grep -v '^ *#' $CLASHDIR/maclist.ini 2> /dev/null)" ];then
 			while read LINE;do
 				ip=$(echo $LINE | grep -v '^ *#' | awk '{print $1}' | grep '\.')
 				mac=$(echo $LINE | grep -v '^ *#' | awk '{print $1}' | grep ':')
@@ -290,10 +381,10 @@ startfirewall(){
 						}
 					fi
 				}
-			done < $CLASHDIR/maclist
+			done < $CLASHDIR/maclist.ini
 		else
-			[ -s $CLASHDIR/maclist ] || echo -e "#黑白名单列表（可填IP或MAC地址）\n#192.168.1.100\t我的电脑\n#aa:bb:cc:dd:ee:ff\t设备名称（可填可不填）" > $CLASHDIR/maclist
-			echo -e "\n$RED常用设备名单无内容！请配置 $BLUE$CLASHDIR/maclist$RED 文件！$RESET" && sleep 2
+			[ -s $CLASHDIR/maclist.ini ] || echo -e "#黑白名单列表（可填IP或MAC地址）\n#192.168.1.100\t我的电脑\n#aa:bb:cc:dd:ee:ff\t设备名称（可填可不填）" > $CLASHDIR/maclist.ini
+			echo -e "\n$RED常用设备名单无内容！请配置 $BLUE$CLASHDIR/maclist.ini$RED 文件！$RESET" && sleep 2
 		fi
 	}
 	[ "$mac_filter" != "开" -o "$mac_filter_mode" != "白名单" ] && {
@@ -455,6 +546,7 @@ showfirewall(){
 [ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && \
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
+	cniproutenum="" && dnshijacknum="" && configurlcount=1 && configurlnum="" && configserver_temp="" && deletenum="" && mirrorurlcount=1 && mirrorurlnum="" && mirrorserver_temp=""
 	saveconfig && num="$1" && [ ! "$num" ] && {
 		echo "========================================================="
 		echo "请输入你的选项："
@@ -485,8 +577,15 @@ main(){
 		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
 		echo -e "9.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
 		echo -e "10. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
-		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件$RESET"
+		[ "$udp_support" = "开" ] && states="${YELLOW}UDP支持：$GREEN已开启" || states="${YELLOW}UDP支持：$RED已关闭"
+		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$states\t$YELLOW当前规则：$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$states\t$YELLOW当前规则：$SKYBLUE$config_url"
+		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件\t$states$RESET"
 		echo -e "12. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
+		[ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "13. $YELLOW设置 $SKYBLUE开机自启动\t\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "88. $RED一键卸载 ${BLUE}Clash-mihomo $RED所有文件$RESET"
+		[ "$mirrorserver" ] && states="$YELLOW正在使用：$SKYBLUE$mirrorserver" || states="$YELLOW当前状态：$RED已禁用"
+		echo -e "99. $YELLOW切换 ${SKYBLUE}Github镜像加速下载服务器\t$states$RESET"
 		echo "---------------------------------------------------------"
 		echo -ne "\n"
 		read -p "请输入对应选项的数字 > " num
@@ -498,7 +597,7 @@ main(){
 			[ "$common_ports" = "开" ] && common_ports=关 || common_ports=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
 		4)
-			echo "=========================================================" && cniproutenum=""
+			echo "========================================================="
 			echo "请输入你的选项："
 			echo "---------------------------------------------------------"
 			[ "$cnip_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
@@ -527,7 +626,7 @@ main(){
 				[ "$(pidof mihomo)" ] && startfirewall
 			else echo -e "\n$RED没有检测到 ${BLUE}Docker $RED正在运行！$RESET\n" && sleep 1;fi;main;;
 		7)
-			echo "=========================================================" && dnshijacknum=""
+			echo "========================================================="
 			echo "请输入你的选项："
 			echo "---------------------------------------------------------"
 			[ "$dns_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
@@ -543,10 +642,10 @@ main(){
 					[ "$dns_hijack" = "开" ] && dns_hijack=关 || dns_hijack=开
 					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
 				2)
-					if [ "$routev6" -a "$dns_ipv6" = "开" -a "$(cat ${0%/*}/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" = "true" ];then
+					if [ "$routev6" -a "$dns_ipv6" = "开" -a "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" = "true" ];then
 						[ "$dnsipv6_hijack" = "开" ] && dnsipv6_hijack=关 || dnsipv6_hijack=开
 						[ "$(pidof mihomo)" ] && startfirewall
-					else echo -e "\n$RED当前无法修改 DNS IPv6 流量劫持选项！$RESET\n" && sleep 1;fi;main $num;;
+					else echo -e "\n$RED当前无法修改 ${SKYBLUE}DNS IPv6流量劫持 $RED选项！$RESET\n" && sleep 1;fi;main $num;;
 				0)main;;
 			esac;;
 		8)
@@ -556,8 +655,81 @@ main(){
 			[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
 		10)showfirewall;;
-		11)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+		11)
+			echo "========================================================="			
+			[ "$udp_support" = "开" ] && states="${YELLOW}UDP支持：$GREEN已开启" || states="${YELLOW}UDP支持：$RED已关闭"
+			[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$states\t$YELLOW当前规则：$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$states\t$YELLOW当前规则：$SKYBLUE$config_url"
+			echo -e "请输入你的选项：$states$RESET"
+			echo "---------------------------------------------------------"
+			while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
+			echo -e "$configurlcount. 自定义输入配置规则地址（如需开启UDP支持请选此项然后输入udp回车确定）"
+			echo -e "99. 立即更新订阅链接"
+			echo "---------------------------------------------------------"
+			echo -e "0. 返回上一页"
+			echo -ne "\n"
+			read -p "请输入对应选项的数字 > " configurlnum
+			[ "$configurlnum" = 99 ] && rm -f $CLASHDIR/config_original.yaml && stop && start
+			[ "$configurlnum" = 0 ] && main
+			[ "$configurlnum" = "$configurlcount" ] && {
+				echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" configserver_temp
+				[ "$configserver_temp" ] && {
+					if [ "$(echo $configserver_temp | grep -E '^http://.*\.|^https://.*\.' )" ];then
+						config_url=$(echo $configserver_temp | awk '{print $1}') && main $num
+					elif [ "$configserver_temp" = "udp" ];then
+						[ "$udp_support" = "开" ] && udp_support=关 || udp_support=开;main $num
+					else
+						echo -e "\n$YELLOW请输入以http开头的正确格式服务器地址！$RESET\n" && sleep 1 && main $num
+					fi
+				}
+			}
+			[ "$configurlnum" -a ! "$(echo $configurlnum | sed 's/[0-9]//g')" ] && [ "$configurlnum" -lt "$configurlcount" ] && config_url="$(sed -n "${configurlnum}p" $CLASHDIR/config_url.ini | grep -o http.*)" && main $num;;
 		12)update;;
+		13)
+			if [ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ];then
+				rm -f /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && main
+			else
+				echo -e "#!/bin/sh /etc/rc.common\n\nSTART=99\n\nstart() {\n\t$0 start\n}" > /etc/init.d/Clash_mihomo && chmod +x /etc/init.d/Clash_mihomo && /etc/init.d/Clash_mihomo enable && main
+			fi;;
+		88)
+			echo "========================================================="
+			echo -e "$YELLOW请确认是否卸载：（$BLUE$CLASHDIR$RED文件夹及里面所有文件将会被删除！！！$YELLOW）$RESET"
+			echo "---------------------------------------------------------"
+			echo "1. 确认卸载"
+			echo "---------------------------------------------------------"
+			echo -e "0. 返回上一页"
+			echo -ne "\n"
+			read -p "请输入对应选项的数字 > " deletenum
+			case "$deletenum" in
+				1)
+					stop;stop del;stop del
+					sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
+				0)main;;
+			esac;;
+		99)
+			echo "========================================================="
+			[ "$mirrorserver" ] && states="$YELLOW正在使用：$SKYBLUE$mirrorserver" || states="$YELLOW当前状态：$RED已禁用"
+			echo -e "请输入你的选项：\t\t\t$states$RESET"
+			echo "---------------------------------------------------------"
+			while read LINE;do [ "$LINE" ] && echo -e "$mirrorurlcount. $LINE" | awk '{print $1,$2}' && let mirrorurlcount++;done < $CLASHDIR/mirror_server.ini
+			echo -e "$mirrorurlcount. 自定义输入服务器地址（如需禁用加速下载功能请选此项然后直接回车确定）"
+			echo "---------------------------------------------------------"
+			echo -e "0. 返回上一页"
+			echo -ne "\n"
+			read -p "请输入对应选项的数字 > " mirrorurlnum
+			[ "$mirrorurlnum" = 0 ] && main
+			[ "$mirrorurlnum" = "$mirrorurlcount" ] && {
+				echo -ne "\n" && read -p "请输入或粘贴加速镜像服务器地址：" mirrorserver_temp
+				if [ "$mirrorserver_temp" ];then
+					if [ "$(echo $mirrorserver_temp | grep -E '^http://.*\.|^https://.*\.' )" ];then
+						mirrorserver=$(echo $mirrorserver_temp | awk '{print $1}') && main $num
+					else
+						echo -e "\n$YELLOW请输入以http开头的正确格式服务器地址！$RESET\n" && sleep 1 && main $num
+					fi
+				else
+					mirrorserver="" && echo -e "\n$YELLOW已禁用 ${SKYBLUE}Github镜像加速下载功能 $YELLOW！$RESET\n" && sleep 1 && main $num
+				fi
+			}
+			[ "$mirrorurlnum" -a ! "$(echo $mirrorurlnum | sed 's/[0-9]//g')" ] && [ "$mirrorurlnum" -lt "$mirrorurlcount" ] && mirrorserver="$(sed -n "${mirrorurlnum}p" $CLASHDIR/mirror_server.ini | awk '{print $1}')" && main $num;;
 	esac
 }
 case "$1" in
