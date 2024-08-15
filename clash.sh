@@ -1,6 +1,8 @@
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
+[ ! "$(uci -q get firewall.firewalluser.path)" ] && echo -e "config inculde 'firewalluser'\n\toption path '/etc/firewall.user'\n\toption reload '1'" >> /etc/config/firewall && sed -i '/./,/^$/!d' /etc/config/firewall
+sed -i '/clash/d' /etc/firewall.user 2> /dev/null;[ ! "$(grep "$0 start$" /etc/firewall.user 2> /dev/null)" ] && echo -e "[ \"\$(pidof mihomo)\" ] && $0 startfirewall" >> /etc/firewall.user
 route=$(ip route | grep br-lan | awk {'print $1'})
 routes="127.0.0.0/8 $route"
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
@@ -11,10 +13,13 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割'
 [ ! "$exclude" ] && exclude='节点过滤|多个关键字请用|竖线分割'
 [ ! "$udp_support" ] && udp_support=关
+[ ! "$sub_url" ] && sub_url=https://api.v1.mk
 [ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
 [ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
 [ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
 [ ! "$redir_port" ] && redir_port=25274
+[ ! "$authusername" ] && authusername=username
+[ ! "$authpassword" ] && authpassword=password
 [ ! "$dashboard_port" ] && dashboard_port=6789
 [ ! "$core_ipv6" -o ! "$routev6" ] && core_ipv6=关
 [ ! "$dns_ipv6" -o ! "$routev6" ] && dns_ipv6=关
@@ -34,9 +39,10 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
 [ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://gh.ddlc.top\nhttps://mirror.ghproxy.com\nhttps://hub.gitmirror.com" > $CLASHDIR/mirror_server.ini
+[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
 [ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
-[ ! -f $CLASHDIR/mihomo -a $Available -lt 17000 ] && echo -e "$RED当前分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
+[ ! -f $CLASHDIR/mihomo -a $Available -lt 17000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
 start(){
 	stop start && update missingfiles
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
@@ -46,7 +52,7 @@ redir-port: $redir_port
 mixed-port: $(($redir_port+1))
 allow-lan: true
 authentication:
-  - "username:password"
+  - "$authusername:$authpassword"
 log-level: debug
 ipv6: $ipv6_core
 keep-alive-interval: 30
@@ -102,7 +108,16 @@ EOF
 	sed -n '/^[^#]/p' $CLASHDIR/custom_rules.ini | sed "s/.*/$spaces&\t#自定义规则/" >> $CLASHDIR/config.yaml
 	cat $CLASHDIR/rules.yaml >> $CLASHDIR/config.yaml && rm -f $CLASHDIR/rules.yaml
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
-	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
+	[ "$error" ] && {
+		if [ -f $CLASHDIR/config_original.yaml.backup ];then
+			echo -e "$YELLOW启动失败！即将尝试使用备份配置文件运行！$RESET"
+			mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml
+			error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
+			[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
+		else
+			echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
+		fi
+	}
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
 	modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
@@ -110,9 +125,10 @@ EOF
 	startfirewall && date +%s > $CLASHDIR/starttime
 	curl -so /dev/null "http://127.0.0.1:$dashboard_port/group/节点选择/delay?url=https://www.google.com/generate_204&timeout=5000" &
 	echo -e "while [ true ];do\n\tsleep 1\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
-	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n"
+	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n" && rm -f $CLASHDIR/config_original.yaml.backup
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
 	[ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && [ -d /sys/module/shortcut_fe_cm ] && rmmod shortcut-fe-cm &> /dev/null
+	return 0
 }
 stop(){
 	killall mihomo 2> /dev/null
@@ -127,6 +143,7 @@ saveconfig(){
 	echo "sublink='$sublink'" > $CLASHDIR/config.ini
 	echo "exclude='$exclude'" >> $CLASHDIR/config.ini
 	echo "udp_support=$udp_support" >> $CLASHDIR/config.ini
+	echo "sub_url='$sub_url'" >> $CLASHDIR/config.ini
 	echo "mirrorserver='$mirrorserver'" >> $CLASHDIR/config.ini
 	echo "config_url='$config_url'" >> $CLASHDIR/config.ini
 	echo "geoip_url='$geoip_url'" >> $CLASHDIR/config.ini
@@ -134,6 +151,8 @@ saveconfig(){
 	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.ini
 	echo "redir_port=$redir_port" >> $CLASHDIR/config.ini
 	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.ini
+	echo "authusername='$authusername'" >> $CLASHDIR/config.ini
+	echo "authpassword='$authpassword'" >> $CLASHDIR/config.ini
 	echo "dashboard_port=$dashboard_port" >> $CLASHDIR/config.ini
 	echo "core_ipv6=$core_ipv6" >> $CLASHDIR/config.ini
 	echo "dns_ipv6=$dns_ipv6" >> $CLASHDIR/config.ini
@@ -164,85 +183,8 @@ githubdownload(){
 	[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1 && return 1
 	[ "$3" ] && echo -e "$GREEN下载成功！$RESET";return 0
 }
-subconver(){
-	rm -f $CLASHDIR/proxies_temp.yaml $CLASHDIR/proxy_groups_temp.yaml $CLASHDIR/rules_temp.yaml $CLASHDIR/config_temp.ini $CLASHDIR/sub_original $CLASHDIR/sub_temp
-	for url in $(echo $sublink | sed 's/|/ /g');do
-		[ "$(echo $url | grep //)" ] && echo -e "\n$YELLOW下载订阅链接 $SKYBLUE$url $YELLOW···$RESET \c" && curl -skLo $CLASHDIR/sub_original -m 60 $url
-		if [ $? = 0 ];then base64 -d $CLASHDIR/sub_original >> $CLASHDIR/sub_temp && echo -e "$GREEN下载成功！$RESET";else echo -e "$RED下载失败！已自动退出脚本$RESET";exit;fi
-	done
-	[ "$(echo $config_url | grep //)" ] && githubdownload "$CLASHDIR/config_temp.ini" "" "订阅配置文件" "$config_url"
-	[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
-	[ ! "$(grep ^proxies: $CLASHDIR/proxies_temp.yaml 2> /dev/null)" ] && echo "proxies:" > $CLASHDIR/proxies_temp.yaml
-	while read LINE;do
-		password=""
-		type=$(echo $LINE | cut -d : -f 1)
-		server=$(echo $LINE | grep -o '@.*:' | sed 's/[@:]//g')
-		port=$(echo $LINE | grep -oE ':[0-9]{1,5}' | sed 's/://')
-		passwordtemp=$(echo $LINE | grep -o '/.*@' | sed 's/[/@]//g')
-		sni=$(echo $LINE | grep -oE 'sni=.*[#&]' | sed 's/sni=//;s/[#&].*//')
-		name=$(printf $(echo $LINE | cut -d \# -f 2 | sed 's/\\/\\\\/g;s/\(%\)\([0-9a-fA-F][0-9a-fA-F]\)/\\x\2/g') | sed "s/.$//")
-		[ "$type" = "trojan" ] && password=", password: $passwordtemp"
-		[ "$type" = "hysteria2" ] && password=", password: $passwordtemp, auth: $passwordtemp"
-		[ "$type" = "ss" ] && passwordtemp=$(echo $passwordtemp | base64 -d 2> /dev/null) && [ $? = 0 ] && password=", cipher: $(echo $passwordtemp | cut -d : -f 1), password: $(echo $passwordtemp | cut -d : -f 2)"
-		[ "$udp_support" = "开" ] && udp=", udp: true"
-		[ "$sni" ] && sni=", sni: $sni, skip-cert-verify: true"
-		if [ "$(echo $name | grep -E "$exclude")" ];then echo -e "\n$YELLOW过滤节点：$PINK$name $YELLOW根据关键字自动过滤$RESET";else [ "$password" ] && echo "  - {name: $name, server: $server, port: $port, client-fingerprint: chrome, type: $type$password$sni$udp}" >> $CLASHDIR/proxies_temp.yaml && echo -e "\n$GREEN添加节点：$PINK$name $GREEN成功！节点类型：$PINK$type$RESET" && proxies="$proxies\n$name" || echo -e "\n$RED添加节点：$PINK$name $RED失败！已自动过滤$RESET";fi
-	done < $CLASHDIR/sub_temp
-	[ ! "$(grep ^proxy-groups: $CLASHDIR/proxy_groups_temp.yaml 2> /dev/null)" ] && echo "proxy-groups:" > $CLASHDIR/proxy_groups_temp.yaml
-	cat $CLASHDIR/config_temp.ini | grep ^custom_proxy_group | while read LINE;do
-		name=$(echo $LINE | cut -d = -f 2 | awk -F \` '{print $1}')
-		type=$(echo $LINE | cut -d = -f 2 | awk -F \` '{print $2}')
-		groups=$(echo $LINE | cut -d = -f 2 | awk -F \` '{$1="";$2="";print $0}' | sed 's/^  //;s/\.\*/[]allproxy/;s/ /\#/g;s/\[]/ &/g;s/(.*/ &/')
-		echo "  - name: $name" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "\n$GREEN代理组：$PINK$name $GREEN包含节点（代理组）：$RESET\c"
-		echo "    type: $type" >> $CLASHDIR/proxy_groups_temp.yaml
-		[ "$(echo $LINE | grep //)" ] && {
-			echo "    url: $(echo $LINE | cut -d \` -f 4)" >> $CLASHDIR/proxy_groups_temp.yaml
-			echo "    interval: $(echo $LINE | cut -d \` -f 5 | awk -F , '{print $1}')" >> $CLASHDIR/proxy_groups_temp.yaml
-			echo "    tolerance: $(echo $LINE | cut -d \` -f 5 | awk -F , '{print $3}')" >> $CLASHDIR/proxy_groups_temp.yaml
-		}
-		echo "    proxies:" >> $CLASHDIR/proxy_groups_temp.yaml
-		for group in $groups;do
-			if [ "$(echo $group | grep allproxy)" ];then
-				echo -e "$proxies" | while read LINE;do
-					[ "$LINE" ] && echo "      - $LINE" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$LINE$RESET \c"
-				done
-			elif [ "$(echo $group | grep \()" ];then
-				echo -e "$proxies" | grep -E "$(echo $group | sed 's/[()]//g')" | while read LINE;do echo "      - $LINE" >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$LINE$RESET \c";done
-			else
-				echo "      - $group" | grep -v // | sed 's/\[]//g;s/#/ /g;s/ $//g' >> $CLASHDIR/proxy_groups_temp.yaml && echo -e "$PINK$(echo $group | grep -v // | sed 's/\[]//g;s/#/ /g;s/ $//g')$RESET \c"
-			fi
-		done;echo
-	done
-	echo "rules:" >> $CLASHDIR/proxy_groups_temp.yaml
-	for group in $(sed -n '/  - name: /p' $CLASHDIR/proxy_groups_temp.yaml | sed 's/ /#/g');do
-		[ ! "$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/p" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | grep -E '^      -')" ] && {
-			delgroupendline=$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/=" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | tail -1)
-			delgroupstartline=$(sed -n "/$(echo $group | sed 's/#/ /g')/,/  -.*:/=" $CLASHDIR/proxy_groups_temp.yaml | head -n -1 | head -1)
-			sed -i "$delgroupstartline,$delgroupendline d;/$(echo $group | awk -F \# '{print $NF}')/d" $CLASHDIR/proxy_groups_temp.yaml
-			echo -e "\n$YELLOW代理组：$PINK$(echo $group | awk -F \# '{print $NF}') $YELLOW内无内容，已自动过滤$RESET"
-		}
-	done
-	[ -s $CLASHDIR/config_temp.ini ] && cat $CLASHDIR/config_temp.ini | grep ^ruleset | while read LINE;do
-		[ "$(echo $LINE | grep -oiE 'geoip.*|geosite.*|match.*|final.*')" ] && echo "  - $(echo $LINE | grep -oiE 'geoip.*|geosite.*|match.*|final.*' | sed 's/final/MATCH/i'),$(echo $LINE | cut -d = -f 2 | awk -F , '{print $1}')" >> $CLASHDIR/rules_temp.yaml
-		[ "$(echo $LINE | grep //)" ] && {
-			rulesurl=$(echo $LINE | awk -F , '{print $2}') && [ "$(echo $rulesurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && rulesurl="$(echo $rulesurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-			groupsname=$(echo $LINE | cut -d = -f 2 | awk -F , '{print $1}')
-			echo -e "\n$YELLOW下载 $BLUE$groupsname $YELLOW代理组规则 $SKYBLUE$rulesurl $YELLOW···$RESET \c"
-			curl -skLm 5 $rulesurl -w "%{http_code}\n" | grep -vE '^$|\#|USER-AGENT|URL-REGEX' | sed "s/,no-resolve//;s/.*/  - &,$groupsname/" | sed 's/IP-CIDR.*/&,no-resolve/' >> $CLASHDIR/rules_temp.yaml
-			if [ "$(sed -n '$p' $CLASHDIR/rules_temp.yaml | grep "200")" ];then
-				echo -e "$GREEN下载成功！$RESET"
-			else
-				echo -e "$RED下载失败！$RESET"
-			fi
-			sed -i '$d' $CLASHDIR/rules_temp.yaml
-		}
-	done
-	for char in proxies proxy_groups rules;do cat $CLASHDIR/${char}_temp.yaml >> $CLASHDIR/config_original.yaml;done
-	rm -f $CLASHDIR/proxies_temp.yaml $CLASHDIR/proxy_groups_temp.yaml $CLASHDIR/rules_temp.yaml $CLASHDIR/config_temp.ini $CLASHDIR/sub_original $CLASHDIR/sub_temp
-	echo -e "\n$YELLOW订阅链接本地转换结束$RESET"
-}
 update(){
-	[ ! "$1" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/config_original.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat $CLASHDIR/mihomo
+	[ ! "$1" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat $CLASHDIR/mihomo && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! -d $CLASHDIR/ui ] && {
 		githubdownload "/tmp/dashboard" "300000" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
@@ -255,7 +197,40 @@ update(){
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && mv -f /tmp/mihomo $CLASHDIR/mihomo && chmod 755 $CLASHDIR/mihomo
 	}
-	[ ! -f $CLASHDIR/config_original.yaml ] && subconver
+	[ ! -f $CLASHDIR/config_original.yaml ] && {
+		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
+			[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
+			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
+			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
+			if [ $? = 0 ];then
+				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
+				sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
+				sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
+			else
+				if [ -f $CLASHDIR/config_original.yaml.backup ];then
+					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
+					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && update missingfiles;return 1
+				else
+					echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
+				fi
+			fi
+		done
+		for group in $(grep '\- name:' /data/Clash/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
+			group="$(echo $group | sed 's/#//g;s/*/ /g')"
+			sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
+			sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_1.yaml | grep '    -' >> $CLASHDIR/proxy-groups.yaml
+			subcount=2 && while [ $subcount -lt $subs ];do
+				for proxie in $(sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_$subcount.yaml | grep '    -' | awk '{for(i=2;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
+					proxie=$(echo $proxie | sed 's/#//g;s/*/ /g')
+					[ ! "$(sed -n "/: $group/,/*/p" $CLASHDIR/proxy-groups.yaml | grep "$proxie")" ] && echo "      - $proxie" >> $CLASHDIR/proxy-groups.yaml
+				done
+				let subcount++
+			done
+		done
+		echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
+		echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
+		rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
+	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && {
 		githubdownload "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
@@ -546,8 +521,8 @@ showfirewall(){
 [ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && \
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
-	cniproutenum="" && dnshijacknum="" && configurlcount=1 && configurlnum="" && configserver_temp="" && deletenum="" && mirrorurlcount=1 && mirrorurlnum="" && mirrorserver_temp=""
-	saveconfig && num="$1" && [ ! "$num" ] && {
+	cniproutenum="" && dnshijacknum="" && confignum=$2 && suburlcount=1 && suburlnum="" && configurlcount=1 && configurlnum="" && configserver_temp="" && deletenum="" && mirrorurlcount=1 && mirrorurlnum="" && mirrorserver_temp=""
+	saveconfig && num="$1" && [ ! "$num" ] && echo && {
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
@@ -577,9 +552,8 @@ main(){
 		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
 		echo -e "9.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
 		echo -e "10. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
-		[ "$udp_support" = "开" ] && states="${YELLOW}UDP支持：$GREEN已开启" || states="${YELLOW}UDP支持：$RED已关闭"
-		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$states\t$YELLOW当前规则：$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$states\t$YELLOW当前规则：$SKYBLUE$config_url"
-		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件\t$states$RESET"
+		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件\t\t\t$YELLOW当前规则：$states$RESET"
 		echo -e "12. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
 		[ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ] && states="$GREEN已开启" || states="$RED已关闭"
 		echo -e "13. $YELLOW设置 $SKYBLUE开机自启动\t\t\t$YELLOW当前状态：$states$RESET"
@@ -591,8 +565,10 @@ main(){
 		read -p "请输入对应选项的数字 > " num
 	}
 	case "$num" in
-		1)start;;
-		2)stop;;
+		1)
+			start;;
+		2)
+			stop;;
 		3)
 			[ "$common_ports" = "开" ] && common_ports=关 || common_ports=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
@@ -605,7 +581,7 @@ main(){
 			[ "$cnipv6_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
 			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIPv6绕过内核\t\t$YELLOW当前状态：$states$RESET"
 			echo "---------------------------------------------------------"
-			echo -e "0. 返回上一页"
+			echo "0. 返回上一页"
 			echo -ne "\n"
 			read -p "请输入对应选项的数字 > " cniproutenum
 			case "$cniproutenum" in
@@ -615,7 +591,8 @@ main(){
 				2)
 					[ "$cnipv6_route" = "开" ] && cnipv6_route=关 || cnipv6_route=开
 					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
-				0)main;;
+				0)
+					main;;
 			esac;;
 		5)
 			[ "$Clash_Local_Proxy" = "开" ] && Clash_Local_Proxy=关 || Clash_Local_Proxy=开
@@ -634,7 +611,7 @@ main(){
 			[ "$dnsipv6_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
 			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS IPv6流量劫持\t\t$YELLOW当前状态：$states$RESET"
 			echo "---------------------------------------------------------"
-			echo -e "0. 返回上一页"
+			echo "0. 返回上一页"
 			echo -ne "\n"
 			read -p "请输入对应选项的数字 > " dnshijacknum
 			case "$dnshijacknum" in
@@ -646,7 +623,8 @@ main(){
 						[ "$dnsipv6_hijack" = "开" ] && dnsipv6_hijack=关 || dnsipv6_hijack=开
 						[ "$(pidof mihomo)" ] && startfirewall
 					else echo -e "\n$RED当前无法修改 ${SKYBLUE}DNS IPv6流量劫持 $RED选项！$RESET\n" && sleep 1;fi;main $num;;
-				0)main;;
+				0)
+					main;;
 			esac;;
 		8)
 			[ "$mac_filter" = "开" ] && mac_filter=关 || mac_filter=开
@@ -654,36 +632,81 @@ main(){
 		9)
 			[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
-		10)showfirewall;;
+		10)
+			showfirewall;;
 		11)
-			echo "========================================================="			
-			[ "$udp_support" = "开" ] && states="${YELLOW}UDP支持：$GREEN已开启" || states="${YELLOW}UDP支持：$RED已关闭"
-			[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$states\t$YELLOW当前规则：$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$states\t$YELLOW当前规则：$SKYBLUE$config_url"
-			echo -e "请输入你的选项：$states$RESET"
-			echo "---------------------------------------------------------"
-			while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
-			echo -e "$configurlcount. 自定义输入配置规则地址（如需开启UDP支持请选此项然后输入udp回车确定）"
-			echo -e "99. 立即更新订阅链接"
-			echo "---------------------------------------------------------"
-			echo -e "0. 返回上一页"
-			echo -ne "\n"
-			read -p "请输入对应选项的数字 > " configurlnum
-			[ "$configurlnum" = 99 ] && rm -f $CLASHDIR/config_original.yaml && stop && start
-			[ "$configurlnum" = 0 ] && main
-			[ "$configurlnum" = "$configurlcount" ] && {
-				echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" configserver_temp
-				[ "$configserver_temp" ] && {
-					if [ "$(echo $configserver_temp | grep -E '^http://.*\.|^https://.*\.' )" ];then
-						config_url=$(echo $configserver_temp | awk '{print $1}') && main $num
-					elif [ "$configserver_temp" = "udp" ];then
-						[ "$udp_support" = "开" ] && udp_support=关 || udp_support=开;main $num
-					else
-						echo -e "\n$YELLOW请输入以http开头的正确格式服务器地址！$RESET\n" && sleep 1 && main $num
-					fi
-				}
+			[ ! "$confignum" ] && {
+				echo "========================================================="
+				echo "请输入你的选项："
+				echo "---------------------------------------------------------"
+				[ "$udp_support" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+				echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}节点UDP支持功能\t\t$YELLOW当前状态：$states$RESET"
+				[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/http.*//')" || states="$SKYBLUE$sub_url"
+				echo -e "2. $YELLOW切换 ${SKYBLUE}订阅转换服务器\t\t\t$YELLOW正在使用：$states$RESET"
+				[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+				echo -e "3. $YELLOW切换 ${SKYBLUE}订阅转换规则\t\t\t$YELLOW正在使用：$states$RESET"
+				echo "9. 立即更新订阅链接"
+				echo "---------------------------------------------------------"
+				echo "0. 返回上一页"
+				echo -ne "\n"
+				read -p "请输入对应选项的数字 > " confignum
 			}
-			[ "$configurlnum" -a ! "$(echo $configurlnum | sed 's/[0-9]//g')" ] && [ "$configurlnum" -lt "$configurlcount" ] && config_url="$(sed -n "${configurlnum}p" $CLASHDIR/config_url.ini | grep -o http.*)" && main $num;;
-		12)update;;
+			case "$confignum" in
+				1)
+					[ "$udp_support" = "开" ] && udp_support=关 || udp_support=开;main $num;;
+				2)
+					echo "========================================================="
+					echo "请输入你的选项："
+					echo "---------------------------------------------------------"
+					while read LINE;do [ "$LINE" ] && echo -e "$suburlcount. $LINE" | sed 's/http.*//' && let suburlcount++;done < $CLASHDIR/convert_server.ini
+					[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/http.*//')" || states="$SKYBLUE$sub_url"
+					echo -e "$suburlcount. 自定义输入后端服务器地址\t\t$YELLOW正在使用：$states$RESET"
+					echo "---------------------------------------------------------"
+					echo "0. 返回上一页"
+					echo -ne "\n"
+					read -p "请输入对应选项的数字 > " suburlnum
+					case "$suburlnum" in
+						$suburlcount)
+							echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" subserver_temp
+							if [ "$(echo $subserver_temp | grep -E '^http://.*\.[^$]|^https://.*\.[^$]' )" ];then
+								sub_url=$(echo $subserver_temp | awk '{print $1}') && main $num $confignum
+							elif [ "$subserver_temp" ];then
+								echo -e "\n$YELLOW请输入正确格式以http开头的服务器地址！$RESET\n" && sleep 1 && main $num $confignum
+							fi;;
+						0)
+							main $num;;
+					esac
+					[ "$suburlnum" -a ! "$(echo $suburlnum | sed 's/[0-9]//g')" ] && [ "$suburlnum" -lt "$suburlcount" ] && sub_url="$(sed -n "${suburlnum}p" $CLASHDIR/convert_server.ini | grep -o http.*)" && main $num $confignum;;
+				3)
+					echo "========================================================="
+					echo "请输入你的选项："
+					echo "---------------------------------------------------------"
+					while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
+					[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+					echo -e "$configurlcount. 自定义输入配置规则地址\t\t$YELLOW正在使用：$states$RESET"
+					echo "---------------------------------------------------------"
+					echo "0. 返回上一页"
+					echo -ne "\n"
+					read -p "请输入对应选项的数字 > " configurlnum
+					case "$configurlnum" in
+						$configurlcount)
+							echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" configserver_temp
+							if [ "$(echo $configserver_temp | grep -E '^http://.*\.[^$]|^https://.*\.[^$]' )" ];then
+								config_url=$(echo $configserver_temp | awk '{print $1}') && main $num $confignum
+							elif [ "$configserver_temp" ];then
+								echo -e "\n$YELLOW请输入正确格式以http开头的服务器地址！$RESET\n" && sleep 1 && main $num $confignum
+							fi;;
+						0)
+							main $num;;
+					esac
+					[ "$configurlnum" -a ! "$(echo $configurlnum | sed 's/[0-9]//g')" ] && [ "$configurlnum" -lt "$configurlcount" ] && config_url="$(sed -n "${configurlnum}p" $CLASHDIR/config_url.ini | grep -o http.*)" && main $num $confignum;;
+				9)
+					mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
+				0)
+					main;;
+			esac;;
+		12)
+			update;;
 		13)
 			if [ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ];then
 				rm -f /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && main
@@ -696,14 +719,15 @@ main(){
 			echo "---------------------------------------------------------"
 			echo "1. 确认卸载"
 			echo "---------------------------------------------------------"
-			echo -e "0. 返回上一页"
+			echo "0. 返回上一页"
 			echo -ne "\n"
 			read -p "请输入对应选项的数字 > " deletenum
 			case "$deletenum" in
 				1)
 					stop;stop del;stop del
 					sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
-				0)main;;
+				0)
+					main;;
 			esac;;
 		99)
 			echo "========================================================="
@@ -711,9 +735,9 @@ main(){
 			echo -e "请输入你的选项：\t\t\t$states$RESET"
 			echo "---------------------------------------------------------"
 			while read LINE;do [ "$LINE" ] && echo -e "$mirrorurlcount. $LINE" | awk '{print $1,$2}' && let mirrorurlcount++;done < $CLASHDIR/mirror_server.ini
-			echo -e "$mirrorurlcount. 自定义输入服务器地址（如需禁用加速下载功能请选此项然后直接回车确定）"
+			echo "$mirrorurlcount. 自定义输入服务器地址（如需禁用加速下载功能请选此项然后直接回车确定）"
 			echo "---------------------------------------------------------"
-			echo -e "0. 返回上一页"
+			echo "0. 返回上一页"
 			echo -ne "\n"
 			read -p "请输入对应选项的数字 > " mirrorurlnum
 			[ "$mirrorurlnum" = 0 ] && main
@@ -723,7 +747,7 @@ main(){
 					if [ "$(echo $mirrorserver_temp | grep -E '^http://.*\.|^https://.*\.' )" ];then
 						mirrorserver=$(echo $mirrorserver_temp | awk '{print $1}') && main $num
 					else
-						echo -e "\n$YELLOW请输入以http开头的正确格式服务器地址！$RESET\n" && sleep 1 && main $num
+						echo -e "\n$YELLOW请输入正确格式以http开头的服务器地址！$RESET\n" && sleep 1 && main $num
 					fi
 				else
 					mirrorserver="" && echo -e "\n$YELLOW已禁用 ${SKYBLUE}Github镜像加速下载功能 $YELLOW！$RESET\n" && sleep 1 && main $num
@@ -736,7 +760,8 @@ case "$1" in
 	1|start)start;;
 	2|stop)stop;;
 	10|showfirewall)showfirewall;;
-	11|config_update)rm -f $CLASHDIR/config_original.yaml;stop && start;;
+	11|config_update)mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
 	12|update)update;;
+	startfirewall)startfirewall;;
 	*)main;;
 esac
