@@ -206,7 +206,7 @@ update(){
 				fi
 			fi
 		done
-		for group in $(grep '\- name:' /data/Clash/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
+		for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
 			group="$(echo $group | sed 's/#//g;s/*/ /g')"
 			sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
 			sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_1.yaml | grep '    -' >> $CLASHDIR/proxy-groups.yaml
