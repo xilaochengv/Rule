@@ -200,7 +200,7 @@ update(){
 			else
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
-					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && update missingfiles;return 1
+					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ "$1" ] && update missingfiles || update restore;return 1
 				else
 					echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
 				fi
@@ -238,7 +238,8 @@ update(){
 		githubdownload "$CLASHDIR/GeoSite.dat" "" "GeoSite数据库文件" "$geosite_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! "$1" ] && start
+	[ ! "$1" -o "$1" = "restore" ] && start
+	return 0
 }
 startfirewall(){
 	stopfirewall && update missingfiles
@@ -507,6 +508,7 @@ showfirewall(){
 	echo -e "\n----------------------------------------IPv6  FILTER----------------------------------------" && {
 		[ "$(ip6tables -S FORWARD | grep utun)" ] && ip6tables -nvL FORWARD
 	}
+	return 0
 }
 #修复小米AX9000开启QOS时若Clash-mihomo正在运行而导致某些特定udp端口流量（如80 8080等）无法通过问题
 [ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && \
