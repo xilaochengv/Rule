@@ -13,7 +13,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割'
 [ ! "$exclude" ] && exclude='节点过滤|多个关键字请用|竖线分割'
 [ ! "$udp_support" ] && udp_support=关
-[ ! "$sub_url" ] && sub_url=https://api.v1.mk
+[ ! "$sub_url" ] && sub_url=https://sub.id9.cc
 [ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
 [ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
 [ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
@@ -318,17 +318,11 @@ startfirewall(){
 					if [ "$mac_filter_mode" = "白名单" ];then
 						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
 						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						[ "$core_ipv6" = "开" ] && {
-							ip6tables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
-							ip6tables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						}
+						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip 加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）"
 					else
 						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
 						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						[ "$core_ipv6" = "开" ] && {
-							ip6tables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
-							ip6tables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						}
+						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip 加入ipv6防火墙黑名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）"
 					fi
 				}
 				[ "$mac" ] && {
