@@ -197,7 +197,7 @@ update(){
 				echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
 				githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
 			done
-			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
+			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
 					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ "$1" ] && update missingfiles || update restore;return 1
