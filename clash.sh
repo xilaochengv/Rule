@@ -168,9 +168,9 @@ saveconfig(){
 	return 0
 }
 githubdownload(){
-	url=$4 && [ "$(echo $url | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $url | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	rm -f $1 && [ "$3" ] && echo -e "\n$YELLOW下载$3 $SKYBLUE$url $YELLOW······$RESET \c"
-	[ "$(curl -m 10 -sLko $1 "$url" -w "%{http_code}")" != "200" ] && rm -f $1 && return 1
+	dlurl=$4 && [ "$(echo $dlurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $dlurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	rm -f $1 && [ "$3" ] && echo -e "\n$YELLOW下载$3 $SKYBLUE$dlurl $YELLOW······$RESET \c"
+	[ "$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")" != "200" ] && rm -f $1 && return 1
 	[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1 && return 1
 	[ "$3" ] && echo -e "$GREEN下载成功！$RESET";return 0
 }
@@ -191,20 +191,23 @@ update(){
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
 		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
 			[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
-			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
+			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g') && failedcount=0
 			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
-			if [ $? = 0 ];then
-				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
-				sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
-				sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
-			else
+			while [ $? != 0 -a $failedcount -lt 3 ];do
+				echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
+				githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
+			done
+			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
 					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ "$1" ] && update missingfiles || update restore;return 1
 				else
 					echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
 				fi
-			fi
+			}
+			sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
+			sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
+			sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
 		done
 		for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
 			group="$(echo $group | sed 's/#//g;s/*/ /g')"
