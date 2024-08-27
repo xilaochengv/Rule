@@ -168,7 +168,7 @@ saveconfig(){
 	return 0
 }
 githubdownload(){
-	dlurl=$4 && [ "$(echo $dlurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && url="$(echo $dlurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	dlurl=$4 && [ "$(echo $dlurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && dlurl="$(echo $dlurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
 	rm -f $1 && [ "$3" ] && echo -e "\n$YELLOW下载$3 $SKYBLUE$dlurl $YELLOW······$RESET \c"
 	[ "$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")" != "200" ] && rm -f $1 && return 1
 	[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1 && return 1
