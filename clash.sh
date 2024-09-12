@@ -322,11 +322,11 @@ startfirewall(){
 					if [ "$mac_filter_mode" = "白名单" ];then
 						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
 						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip 加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）"
+						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip $RED加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
 					else
 						iptables -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
 						iptables -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip 加入ipv6防火墙黑名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）"
+						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip $RED加入ipv6防火墙黑名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
 					fi
 				}
 				[ "$mac" ] && {
