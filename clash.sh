@@ -117,6 +117,7 @@ EOF
 	curl -so /dev/null "http://127.0.0.1:$dashboard_port/group/节点选择/delay?url=https://www.google.com/generate_204&timeout=5000" &
 	echo -e "while [ true ];do\n\tsleep 1\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
 	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n" && rm -f $CLASHDIR/config_original.yaml.backup
+	rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
 	[ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && [ -d /sys/module/shortcut_fe_cm ] && rmmod shortcut-fe-cm &> /dev/null
 	return 0
