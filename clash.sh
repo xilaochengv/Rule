@@ -34,7 +34,6 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$cnipv6_route" ] && cnipv6_route=关
 [ ! "$common_ports" ] && common_ports=关
 [ ! "$multiports" ] && multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
-[ ! "$wakeonlan_ports" ] && wakeonlan_ports=9
 [ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
@@ -163,7 +162,6 @@ saveconfig(){
 	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
 	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.ini
 	echo "multiports=$multiports" >> $CLASHDIR/config.ini
-	echo "wakeonlan_ports=$wakeonlan_ports" >> $CLASHDIR/config.ini
 	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
 	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
 	return 0
@@ -290,9 +288,13 @@ startfirewall(){
 	fi
 	iptables -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
 	[ "$core_ipv6" = "开" ] && ip6tables -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
-	[ "$wanipv4" -a "$common_ports" = "关" ] && {
-		iptables -t mangle -A Clash -d $wanipv4 -p udp -m multiport --dports $wakeonlan_ports -m comment --comment "udp流量目标地址和端口分别为本地WAN口IPv4地址和网络唤醒端口，直接绕过Clash内核" -j RETURN
-		[ "$wanipv6" -a "$core_ipv6" = "开" ] && ip6tables -t mangle -A Clash -d $wanipv6 -p udp -m multiport --dports $wakeonlan_ports -m comment --comment "udp流量目标地址和端口分别为本地WAN口IPv4地址和网络唤醒端口，直接绕过Clash内核" -j RETURN
+	[ "$wanipv4" ] && {
+		iptables -t mangle -A Clash -d $wanipv4 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
+		iptables -t nat -A Clash -d $wanipv4 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
+		[ "$wanipv6" -a "$core_ipv6" = "开" ] && {
+			ip6tables -t mangle -A Clash -d $wanipv6 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
+			ip6tables -t nat -A Clash -d $wanipv6 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
+		}
 	}
 	for ip in $routes;do
 		iptables -t mangle -A Clash -d $ip -p udp -m comment --comment "udp流量目的地为本地IP网段，直接绕过Clash内核" -j RETURN
