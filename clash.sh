@@ -21,8 +21,8 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$authusername" ] && authusername=username
 [ ! "$authpassword" ] && authpassword=password
 [ ! "$dashboard_port" ] && dashboard_port=6789
-[ ! "$core_ipv6" -o ! "$routev6" ] && core_ipv6=关
-[ ! "$dns_ipv6" -o ! "$routev6" ] && dns_ipv6=关
+[ ! "$core_ipv6" ] && core_ipv6=开
+[ ! "$dns_ipv6" ] && dns_ipv6=开
 [ ! "$dns_hijack" ] && dns_hijack=关
 [ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
