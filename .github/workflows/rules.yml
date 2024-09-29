@@ -37,7 +37,7 @@ jobs:
         curl -skm 10 https://trackerslist.com/all.txt | awk -F / '{print $3}' | grep [a-z] | grep -v ] | sed 's/:.*//' | awk '!a[$0]++' > sites/trackers
         rules="apple bahamut epicgames google microsoft ookla-speedtest steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
-        for rule in $(ls sites);do sed -i 's/#.*//' sites/$rule;sed -i 's/ //g' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
+        for rule in $(ls sites);do sed -i 's/#.*//;s/ //g' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
     - name: 生成文件
       run: |
         ./v2ipdat
