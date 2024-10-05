@@ -424,7 +424,7 @@ startfirewall(){
 		[ "$cnip_route" = "开" ] && iptables -t nat -A Clash_Local_Proxy -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
 		[ "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && ip6tables -t nat -A Clash_Local_Proxy -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
 		iptables -t nat -A Clash_Local_Proxy -s $wanipv4 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
-		[ "$core_ipv6" = "开" ] && ip6tables -t nat -A Clash_Local_Proxy -s $wanipv6 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
+		[ "$wanipv6" -a "$core_ipv6" = "开" ] && ip6tables -t nat -A Clash_Local_Proxy -s $wanipv6 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
 	}
 	return 0
 }
