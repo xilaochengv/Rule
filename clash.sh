@@ -167,35 +167,35 @@ saveconfig(){
 	return 0
 }
 githubdownload(){
-	dlurl=$4 && [ "$(echo $dlurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && dlurl="$(echo $dlurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	rm -f $1 && [ "$3" ] && echo -e "\n$YELLOW下载$3 $SKYBLUE$dlurl $YELLOW······$RESET \c"
-	[ "$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")" != "200" ] && rm -f $1 && return 1
-	[ -f $1 -a "$2" ] && [ $(wc -c < $1) -lt $2 ] && rm -f $1 && return 1
-	[ "$3" ] && echo -e "$GREEN下载成功！$RESET";return 0
+	rm -f $1 && failedcount=0 && http_code=0 && dlurl=$3 && [ "$(echo $dlurl | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && dlurl="$(echo $dlurl | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
+	http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
+	while [ $? != 0 -a $failedcount -lt 3 -o $http_code != 200 -a $failedcount -lt 3 ];do
+		rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
+		echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
+	done
+	[ $? != 0 -o $http_code != 200 ] && rm -f $1 && return 1
+	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
 	[ ! "$1" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat $CLASHDIR/mihomo && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! -d $CLASHDIR/ui ] && {
-		githubdownload "/tmp/dashboard" "300000" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
+		githubdownload "/tmp/dashboard" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 		mkdir -m 755 $CLASHDIR/ui && tar -zxf /tmp/dashboard -C $CLASHDIR/ui && rm -f /tmp/dashboard
 		sed -i "s/9090/$dashboard_port/g;s/127.0.0.1/$localip/g" $CLASHDIR/ui/assets/index.628acf3b.js
 	}
 	[ ! -f $CLASHDIR/mihomo ] && {
 		while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep tag_name | cut -f4 -d '"');done
-		githubdownload "/tmp/mihomo.gz" "9500000" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
+		githubdownload "/tmp/mihomo.gz" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && mv -f /tmp/mihomo $CLASHDIR/mihomo && chmod 755 $CLASHDIR/mihomo
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
 		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
 			[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
-			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g') && failedcount=0
-			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
-			while [ $? != 0 -a $failedcount -lt 3 ];do
-				echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
-				githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
-			done
+			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
+			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
 			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
@@ -225,19 +225,19 @@ update(){
 		rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && {
-		githubdownload "$CLASHDIR/cn_ip.txt" "130000" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
+		githubdownload "$CLASHDIR/cn_ip.txt" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && {
-		githubdownload "$CLASHDIR/cn_ipv6.txt" "29000" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
+		githubdownload "$CLASHDIR/cn_ipv6.txt" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! -f $CLASHDIR/GeoIP.dat ] && {
-		githubdownload "$CLASHDIR/GeoIP.dat" "" "GeoIP数据库文件" "$geoip_url"
+	[ "$(grep -i geoip $CLASHDIR/config_original.yaml)" ] && [ ! -f $CLASHDIR/GeoIP.dat ] && {
+		githubdownload "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! -f $CLASHDIR/GeoSite.dat ] && {
-		githubdownload "$CLASHDIR/GeoSite.dat" "" "GeoSite数据库文件" "$geosite_url"
+	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" ] && [ ! -f $CLASHDIR/GeoSite.dat ] && {
+		githubdownload "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ ! "$1" -o "$1" = "restore" ] && start
