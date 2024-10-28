@@ -161,6 +161,7 @@ saveconfig(){
 	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.ini
 	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
 	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.ini
+	multiports=$(echo $multiports | sed 's/[^0-9\-]/,/g')
 	echo "multiports=$multiports" >> $CLASHDIR/config.ini
 	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
 	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
@@ -257,6 +258,17 @@ startfirewall(){
 	[ "$core_ipv6" = "开" ] && ip6tables -t mangle -N Clash && ip6tables -t nat -N Clash
 	if [ "$common_ports" = "开" ];then
 		ports="" && amount=0 && for port in $(echo $multiports | awk -F , '{for(i=1;i<=NF;i++){print $i};}');do
+			[ "$(echo $port | grep -)" ] && port=$(echo $port | sed 's/-/:/') && let amount++
+			[ $amount == 15 ] && {
+				ports=$(echo $ports | sed 's/^,//')
+				iptables -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+				iptables -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+				[ "$core_ipv6" = "开" ] && {
+					ip6tables -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					ip6tables -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+				}
+				amount=1 && ports=""
+			}
 			ports="$ports,$port" && let amount++
 			[ $amount == 15 ] && {
 				ports=$(echo $ports | sed 's/^,//')
@@ -397,6 +409,13 @@ startfirewall(){
 		[ "$core_ipv6" = "开" ] && ip6tables -t nat -N Clash_Local_Proxy
 		if [ "$common_ports" = "开" ];then
 			ports="" && amount=0 && for port in $(echo $multiports | awk -F , '{for(i=1;i<=NF;i++){print $i};}');do
+				[ "$(echo $port | grep -)" ] && port=$(echo $port | sed 's/-/:/') && let amount++
+				[ $amount == 15 ] && {
+					ports=$(echo $ports | sed 's/^,//')
+					iptables -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					[ "$core_ipv6" = "开" ] && ip6tables -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					amount=1 && ports=""
+				}
 				ports="$ports,$port" && let amount++
 				[ $amount == 15 ] && {
 					ports=$(echo $ports | sed 's/^,//')
