@@ -41,7 +41,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
 [ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
-[ ! -f $CLASHDIR/mihomo -a $Available -lt 17000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
+[ ! -f $CLASHDIR/mihomo -a $Available -lt 3000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
 start(){
 	stop start && update missingfiles
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
@@ -190,7 +190,7 @@ update(){
 		while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep tag_name | cut -f4 -d '"');done
 		githubdownload "/tmp/mihomo.gz" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
-		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && mv -f /tmp/mihomo $CLASHDIR/mihomo && chmod 755 $CLASHDIR/mihomo
+		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && chmod 755 /tmp/mihomo && mv -f /tmp/mihomo $CLASHDIR/mihomo 2> /dev/null || ln -sf /tmp/mihomo $CLASHDIR/mihomo
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
 		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
@@ -737,7 +737,7 @@ main(){
 			case "$deletenum" in
 				1)
 					stop;stop del;stop del
-					sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
+					sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
 				0)
 					main;;
 			esac;;
