@@ -6,7 +6,7 @@ sed -i '/clash/d' /etc/firewall.user 2> /dev/null;[ ! "$(grep "$0 start$" /etc/f
 route=$(ip route | grep br-lan | awk {'print $1'})
 routes="127.0.0.0/8 $route"
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
-routesv6="::1/128 $routev6"
+routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
@@ -390,19 +390,19 @@ startfirewall(){
 	}
 	[ "$dns_hijack" = "开" ] && {
 		iptables -t nat -N Clash_DNS
-		iptables -t nat -A PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		iptables -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
 		iptables -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
 		iptables -t nat -A Clash_DNS -d $localip -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
-		iptables -t nat -A Clash_DNS -d 127.0.0.1 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		iptables -t nat -A Clash_DNS -s 127.0.0.0/8 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
 	}
 	[ "$dnsipv6_hijack" = "开" ] && {
 		ip6tables -t nat -N Clash_DNS
-		ip6tables -t nat -A PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		ip6tables -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
 		ip6tables -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
-		for route6 in $routev6;do
-			ip6tables -t nat -A Clash_DNS -d $route6 -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		for localipv6dns in $(route -A inet6 | grep '^fe80.*[0-9a-f]/128.*Un' | awk '{print $1}');do
+			ip6tables -t nat -A Clash_DNS -d $localipv6dns -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
 		done
-		ip6tables -t nat -A Clash_DNS -d ::1/128 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		ip6tables -t nat -A Clash_DNS -s ::1 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
 	}
 	[ "$wanipv4" -a "$Clash_Local_Proxy" = "开" ] && {
 		iptables -t nat -N Clash_Local_Proxy
