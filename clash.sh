@@ -564,7 +564,7 @@ main(){
 		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
 		echo -e "9.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
 		echo -e "10. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
-		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
 		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件\t\t\t$YELLOW当前规则：$states$RESET"
 		echo -e "12. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
 		[ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ] && states="$GREEN已开启" || states="$RED已关闭"
@@ -653,9 +653,9 @@ main(){
 				echo "---------------------------------------------------------"
 				[ "$udp_support" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
 				echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}节点UDP支持功能\t\t$YELLOW当前状态：$states$RESET"
-				[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/http.*//')" || states="$SKYBLUE$sub_url"
+				[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/ http.*//')" || states="$SKYBLUE$sub_url"
 				echo -e "2. $YELLOW切换 ${SKYBLUE}订阅转换服务器\t\t\t$YELLOW正在使用：$states$RESET"
-				[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+				[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
 				echo -e "3. $YELLOW切换 ${SKYBLUE}订阅转换规则\t\t\t$YELLOW正在使用：$states$RESET"
 				echo "9. 立即更新订阅链接"
 				echo "---------------------------------------------------------"
@@ -670,8 +670,8 @@ main(){
 					echo "========================================================="
 					echo "请输入你的选项："
 					echo "---------------------------------------------------------"
-					while read LINE;do [ "$LINE" ] && echo -e "$suburlcount. $LINE" | sed 's/http.*//' && let suburlcount++;done < $CLASHDIR/convert_server.ini
-					[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/http.*//')" || states="$SKYBLUE$sub_url"
+					while read LINE;do [ "$LINE" ] && echo -e "$suburlcount. $LINE" | sed 's/ http.*//' && let suburlcount++;done < $CLASHDIR/convert_server.ini
+					[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/ http.*//')" || states="$SKYBLUE$sub_url"
 					echo -e "$suburlcount. 自定义输入后端服务器地址\t\t$YELLOW正在使用：$states$RESET"
 					echo "---------------------------------------------------------"
 					echo "0. 返回上一页"
@@ -693,8 +693,8 @@ main(){
 					echo "========================================================="
 					echo "请输入你的选项："
 					echo "---------------------------------------------------------"
-					while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
-					[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/http.*//')" || states="$SKYBLUE$config_url"
+					while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/ http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
+					[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
 					echo -e "$configurlcount. 自定义输入配置规则地址\t\t$YELLOW正在使用：$states$RESET"
 					echo "---------------------------------------------------------"
 					echo "0. 返回上一页"
