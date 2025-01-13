@@ -179,7 +179,8 @@ githubdownload(){
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
-	[ ! "$1" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat $CLASHDIR/mihomo && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
+	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
+	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! -d $CLASHDIR/ui ] && {
 		githubdownload "/tmp/dashboard" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
@@ -241,7 +242,7 @@ update(){
 		githubdownload "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! "$1" -o "$1" = "restore" ] && start
+	[ ! "$1" -o "$1" = "restore" -o "$1" = "crontab" ] && start
 	return 0
 }
 startfirewall(){
@@ -514,17 +515,17 @@ showfirewall(){
 	echo -e "\n-------------------------------------------FILTER-------------------------------------------" && {
 		[ "$(iptables -S FORWARD | grep utun)" ] && iptables -nvL FORWARD
 	}
-	echo -e "\n----------------------------------------IPv6  MANGLE----------------------------------------" && {
+	[ "$routev6" ] && echo -e "\n----------------------------------------IPv6  MANGLE----------------------------------------" && {
 		[ "$(ip6tables -t mangle -S PREROUTING | grep Clash)" ] && ip6tables -t mangle -nvL PREROUTING && echo && ip6tables -t mangle -nvL Clash
 	}
-	echo -e "\n-----------------------------------------IPv6  NAT------------------------------------------" && {
+	[ "$routev6" ] && echo -e "\n-----------------------------------------IPv6  NAT------------------------------------------" && {
 		[ "$(ip6tables -t nat -S PREROUTING | grep Clash)" ] && ip6tables -t nat -nvL PREROUTING && echo && ip6tables -t nat -nvL Clash 2> /dev/null
 		[ "$(ip6tables -t nat -S OUTPUT | grep Clash)" ] && echo && ip6tables -t nat -nvL OUTPUT && echo && {
 			ip6tables -t nat -nvL Clash_DNS 2> /dev/null && echo
 			ip6tables -t nat -nvL Clash_Local_Proxy 2> /dev/null
 		}
 	}
-	echo -e "\n----------------------------------------IPv6  FILTER----------------------------------------" && {
+	[ "$routev6" ] && echo -e "\n----------------------------------------IPv6  FILTER----------------------------------------" && {
 		[ "$(ip6tables -S FORWARD | grep utun)" ] && ip6tables -nvL FORWARD
 	}
 	return 0
@@ -774,6 +775,7 @@ case "$1" in
 	10|showfirewall)showfirewall;;
 	11|config_update)mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
 	12|update)update;;
+	crontab)update crontab;;
 	startfirewall)startfirewall;;
 	*)main;;
 esac
