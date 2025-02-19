@@ -322,7 +322,6 @@ startfirewall(){
 			ip6tables -t nat -A Clash -d $ip -p tcp -m comment --comment "tcp流量目的地为本地IPv6网段，直接绕过Clash内核" -j RETURN
 		done
 	}
-	[ -f /extdisks/sda1/共享/直播源.txt ] && for iptv_ip in $(grep -oE '[0-9.]{7,15}' /extdisks/sda1/共享/直播源.txt | grep -v ^239 | awk '!a[$0]++');do iptables -t nat -I Clash -p tcp -d $iptv_ip -j REDIRECT --to-port $redir_port;done
 	[ "$cnip_route" = "开" ] && {
 		iptables -t mangle -A Clash -m set --match-set cn_ip dst -p udp -m comment --comment "udp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
 		iptables -t nat -A Clash -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
