@@ -212,7 +212,7 @@ update(){
 			sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
 			sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
 			sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
-		done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && sed -i "/type: $exclude_type_temp/d" $CLASHDIR/proxies.yaml
+		done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && [ "$exclude_type_name" ] && sed -i "/type: $exclude_type_temp/d" $CLASHDIR/proxies.yaml
 		for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
 			group="$(echo $group | sed 's/#//g;s/*/ /g')"
 			sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
@@ -224,7 +224,7 @@ update(){
 				done
 				let subcount++
 			done
-		done && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
+		done && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && [ "$exclude_type_name" ] && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
 		echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
 		echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
 		rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
