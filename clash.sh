@@ -11,7 +11,8 @@ localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
 [ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割'
-[ ! "$exclude" ] && exclude='节点过滤|多个关键字请用|竖线分割'
+[ ! "$exclude_name" ] && exclude_name='节点名称过滤|多个关键字请用|竖线分割'
+[ ! "$exclude_type" ] && exclude_type='节点类型过滤|多个关键字请用|竖线分割'
 [ ! "$udp_support" ] && udp_support=关
 [ ! "$sub_url" ] && sub_url=https://sub.id9.cc
 [ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
@@ -132,7 +133,8 @@ stop(){
 }
 saveconfig(){
 	echo "sublink='$sublink'" > $CLASHDIR/config.ini
-	echo "exclude='$exclude'" >> $CLASHDIR/config.ini
+	echo "exclude_name='$exclude_name'" >> $CLASHDIR/config.ini
+	echo "exclude_type='$exclude_type'" >> $CLASHDIR/config.ini
 	echo "udp_support=$udp_support" >> $CLASHDIR/config.ini
 	echo "sub_url='$sub_url'" >> $CLASHDIR/config.ini
 	echo "mirrorserver='$mirrorserver'" >> $CLASHDIR/config.ini
@@ -179,8 +181,8 @@ githubdownload(){
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
+	[ ! "$1" -o "$1" = "crontab" ] && while [ -f /tmp/iptv_scaning ];do sleep 1;done && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
-	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! -d $CLASHDIR/ui ] && {
 		githubdownload "/tmp/dashboard" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
@@ -194,10 +196,11 @@ update(){
 		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && chmod 755 /tmp/mihomo && mv -f /tmp/mihomo $CLASHDIR/mihomo 2> /dev/null || ln -sf /tmp/mihomo $CLASHDIR/mihomo
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
+		exclude_type_temp=$(echo $exclude_type | sed 's/|/\\\|/g')
 		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
 			[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
 			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
-			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude=$exclude&url=$url&config=$config_url"
+			githubdownload "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude_name=$exclude_name&url=$url&config=$config_url"
 			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
@@ -209,7 +212,7 @@ update(){
 			sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
 			sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
 			sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
-		done
+		done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && sed -i "/type: $exclude_type_temp/d" $CLASHDIR/proxies.yaml
 		for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
 			group="$(echo $group | sed 's/#//g;s/*/ /g')"
 			sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
@@ -221,7 +224,7 @@ update(){
 				done
 				let subcount++
 			done
-		done
+		done && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
 		echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
 		echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
 		rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
@@ -319,6 +322,7 @@ startfirewall(){
 			ip6tables -t nat -A Clash -d $ip -p tcp -m comment --comment "tcp流量目的地为本地IPv6网段，直接绕过Clash内核" -j RETURN
 		done
 	}
+	[ -f /extdisks/sda1/共享/直播源.txt ] && for iptv_ip in $(grep -oE '[0-9.]{7,15}' /extdisks/sda1/共享/直播源.txt | grep -v ^239 | awk '!a[$0]++');do iptables -t nat -I Clash -p tcp -d $iptv_ip -j REDIRECT --to-port $redir_port;done
 	[ "$cnip_route" = "开" ] && {
 		iptables -t mangle -A Clash -m set --match-set cn_ip dst -p udp -m comment --comment "udp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
 		iptables -t nat -A Clash -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
