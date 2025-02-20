@@ -204,7 +204,7 @@ update(){
 			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
-					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ "$1" ] && update missingfiles || update restore;return 1
+					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
 				else
 					echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
 				fi
