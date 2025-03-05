@@ -72,10 +72,11 @@ dns:
   ipv6: $ipv6_dns
   enhanced-mode: redir-host
   default-nameserver:
-    - 223.6.6.6
+    - tls://223.6.6.6
   nameserver-policy:
     'geosite: cn': [$dns_default]
   nameserver: [$dns_fallback]
+  proxy-server-nameserver: [$dns_default]
 sniffer:
   enable: true
   force-dns-mapping: true
