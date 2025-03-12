@@ -5,7 +5,7 @@ sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alia
 sed -i '/clash/d' /etc/firewall.user 2> /dev/null;[ ! "$(grep "$0 start$" /etc/firewall.user 2> /dev/null)" ] && echo -e "[ \"\$(pidof mihomo)\" ] && $0 startfirewall" >> /etc/firewall.user
 route=$(ip route | grep br-lan | awk {'print $1'})
 routes="127.0.0.0/8 $route"
-[ "$(uci get ipv6.settings.enabled)" = 0 ] && for routev6 in $(ip -6 route | awk '{print $1}');do ip -6 route del $routev6;done
+[ "$(uci -q get ipv6.settings.enabled)" = 0 ] && for routev6 in $(ip -6 route | awk '{print $1}');do ip -6 route del $routev6;done
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
 routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
@@ -183,7 +183,7 @@ githubdownload(){
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
-	[ ! "$1" -o "$1" = "crontab" ] && while [ -f /tmp/iptv_scaning ];do sleep 10;done && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
+	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
 	[ ! -d $CLASHDIR/ui ] && {
 		githubdownload "/tmp/dashboard" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
