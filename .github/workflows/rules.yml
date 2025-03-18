@@ -27,9 +27,9 @@ jobs:
         #curl -s https://raw.githubusercontent.com/lingchenzi/app/main/Netflix_IP > ips/netflix
         curl -s https://core.telegram.org/resources/cidr.txt > ips/telegram
         curl -skm 10 https://trackerslist.com/all.txt | awk -F / '{print $3}' | grep -oE '[0-9.]{7,15}|[0-9a-f:]{10,39}' | grep -E '\.|:' | grep -vE '^\.|\.$' | awk '!a[$0]++' > ips/tracker
-        curl -skm 10 https://raw.githubusercontent.com/Tunglies/TrackersList/main/all.txt | awk -F / '{print $3}' | grep -oE '[0-9.]{7,15}|[0-9a-f:]{10,39}' | grep -E '\.|:' | grep -vE '^\.|\.$' | awk '!a[$0]++' >> ips/tracker
-        curl -skm 10 https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt | awk -F / '{print $3}' | grep -oE '[0-9.]{7,15}|[0-9a-f:]{10,39}' | grep -E '\.|:' | grep -vE '^\.|\.$' | awk '!a[$0]++' >> ips/tracker
-        curl -skm 10 'https://newtrackon.com/api/stable?include_ipv4_only_trackers=1&include_ipv6_only_trackers=1' | awk -F / '{print $3}' | grep -oE '[0-9.]{7,15}|[0-9a-f:]{10,39}' | grep -E '\.|:' | grep -vE '^\.|\.$' | awk '!a[$0]++' >> ips/tracker
+        curl -skm 10 https://raw.githubusercontent.com/Tunglies/TrackersList/main/all.txt | awk -F / '{print $3}' | grep -vE '[a-z]$|[a-z]:' | grep -oE '^[0-9.]{7,15}|^[[0-9a-f:]{10,39}' | sed 's/\[//' | awk '!a[$0]++' >> ips/tracker
+        curl -skm 10 https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt | awk -F / '{print $3}' | grep -vE '[a-z]$|[a-z]:' | grep -oE '^[0-9.]{7,15}|^[[0-9a-f:]{10,39}' | sed 's/\[//' | awk '!a[$0]++' >> ips/tracker
+        curl -skm 10 'https://newtrackon.com/api/stable?include_ipv4_only_trackers=1&include_ipv6_only_trackers=1' | awk -F / '{print $3}' | grep -vE '[a-z]$|[a-z]:' | grep -oE '^[0-9.]{7,15}|^[[0-9a-f:]{10,39}' | sed 's/\[//' | awk '!a[$0]++' >> ips/tracker
         awk '!a[$0]++' ips/tracker > ips/trackers
         rm -f ips/tracker
         for line in $(awk 'a[$0]++ {print NR}' ips/google | sort -r);do [ "$line" ] && sed -i "${line}d" ips/google;done
