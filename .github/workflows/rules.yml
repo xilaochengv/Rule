@@ -55,7 +55,7 @@ jobs:
         curl -skm 10 https://raw.githubusercontent.com/ngosang/trackerslist/master/trackers_all.txt >> trackers
         curl -skm 10 'https://newtrackon.com/api/stable?include_ipv4_only_trackers=1&include_ipv6_only_trackers=1' >> trackers
         awk '!a[$0]++' trackers > trackers_all
-        sed -i '/./,/^$/!d' trackers_all
+        sed -i '/^$/d' trackers_all
         ./v2ipdat
         ./v2sitedat
         echo "自用规则文件" > body
