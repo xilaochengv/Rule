@@ -11,11 +11,12 @@ routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
-[ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割'
+[ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割|subconver为开时可用'
 [ ! "$exclude_name" ] && exclude_name='节点名称过滤|多个关键字请用|竖线分割'
 [ ! "$exclude_type" ] && exclude_type='节点类型过滤|多个关键字请用|竖线分割'
 [ ! "$udp_support" ] && udp_support=关
-[ ! "$sub_url" ] && sub_url=https://sub.id9.cc
+[ ! "$subconver" ] && subconver=开
+[ ! "$sub_url" ] && sub_url=https://url.v1.mk
 [ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
 [ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
 [ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
@@ -83,20 +84,12 @@ sniffer:
   force-dns-mapping: true
   parse-pure-ip: true
   sniff:
-    http:
-      ports:
-        - 80
-        - 8000-8888
-    tls:
-      ports:
-        - 443
-        - 8443
-    quic:
-      ports:
-        - 443
-        - 8443
+    http: { ports: [1-65535] }
+    tls: { ports: [1-65535] }
+    quic: { ports: [1-65535] }
   skip-domain:
     - Mijia Cloud
+    - dlg.io.mi.com
 tun:
   enable: true
   stack: mixed
@@ -105,9 +98,15 @@ tun:
   udp-timeout: 60
 $(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml)
 EOF
-	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i 's/GEOIP.*/&,no-resolve/' $CLASHDIR/rules.yaml
+	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i "s/\'//g;s/GEOIP.*/&,no-resolve/" $CLASHDIR/rules.yaml
 	spaces=$(sed -n 1p $CLASHDIR/rules.yaml | grep -oE '^ *- *')
-	sed -n '/^[^#]/p' $CLASHDIR/custom_rules.ini | sed "s/.*/$spaces&\t#自定义规则/" >> $CLASHDIR/config.yaml
+	while read LINE;do
+		[ "$(echo $LINE | grep -v '^#')" ] && {
+			groupname=$(echo $LINE | awk -F , '{print $3}') && [ "$(grep -E "\- $groupname$|\- name: $groupname$|'$groupname'|\[$groupname,|, $groupname,|, $groupname]" $CLASHDIR/config.yaml)" ] && \
+			echo $LINE | sed "s/.*/$spaces&\t#自定义规则/" >> $CLASHDIR/config.yaml || \
+			echo -e "$YELLOW\n自定义规则 $PINK$LINE$YELLOW 中的节点 $PINK$groupname$YELLOW 不存在，已自动忽略添加本条自定义规则！$RESET"
+		}
+	done < $CLASHDIR/custom_rules.ini
 	cat $CLASHDIR/rules.yaml >> $CLASHDIR/config.yaml && rm -f $CLASHDIR/rules.yaml
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
@@ -135,6 +134,7 @@ stop(){
 }
 saveconfig(){
 	echo "sublink='$sublink'" > $CLASHDIR/config.ini
+	echo "subconver=$subconver" >> $CLASHDIR/config.ini
 	echo "exclude_name='$exclude_name'" >> $CLASHDIR/config.ini
 	echo "exclude_type='$exclude_type'" >> $CLASHDIR/config.ini
 	echo "udp_support=$udp_support" >> $CLASHDIR/config.ini
@@ -215,38 +215,50 @@ update(){
 		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && chmod 755 /tmp/mihomo && mv -f /tmp/mihomo $CLASHDIR/mihomo 2> /dev/null || ln -sf /tmp/mihomo $CLASHDIR/mihomo
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
-		exclude_type_temp=$(echo $exclude_type | sed 's/|/\\\|/g')
-		subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
-			[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
-			url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
-			download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude_name=$exclude_name&url=$url&config=$config_url"
-			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
+		if [ "$subconver" = "开" ];then
+			exclude_type_temp=$(echo $exclude_type | sed 's/|/\\\|/g')
+			subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
+				[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
+				url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
+				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude_name=$exclude_name&url=$url&config=$config_url"
+				[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
+					if [ -f $CLASHDIR/config_original.yaml.backup ];then
+						echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
+						mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
+					else
+						echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
+					fi
+				}
+				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
+				sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
+				sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
+			done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && [ "$exclude_type_name" ] && sed -i "/type: .*$exclude_type_temp/d" $CLASHDIR/proxies.yaml
+			for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
+				group="$(echo $group | sed 's/#//g;s/*/ /g')"
+				sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
+				sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_1.yaml | grep '    -' >> $CLASHDIR/proxy-groups.yaml
+				subcount=2 && while [ $subcount -lt $subs ];do
+					for proxie in $(sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_$subcount.yaml | grep '    -' | awk '{for(i=2;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
+						proxie=$(echo $proxie | sed 's/#//g;s/*/ /g')
+						[ ! "$(sed -n "/: $group/,/*/p" $CLASHDIR/proxy-groups.yaml | grep "$proxie")" ] && echo "      - $proxie" >> $CLASHDIR/proxy-groups.yaml
+					done
+					let subcount++
+				done
+			done && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && [ "$exclude_type_name" ] && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
+			echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
+			echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
+			rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
+		else
+			download "$CLASHDIR/config_original.yaml" "配置文件" "$sublink"
+			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
 					mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
 				else
-					echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
+					echo -e "$RED下载失败！已自动退出脚本$RESET" && exit
 				fi
 			}
-			sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
-			sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
-			sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
-		done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && [ "$exclude_type_name" ] && sed -i "/type: .*$exclude_type_temp/d" $CLASHDIR/proxies.yaml
-		for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
-			group="$(echo $group | sed 's/#//g;s/*/ /g')"
-			sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
-			sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_1.yaml | grep '    -' >> $CLASHDIR/proxy-groups.yaml
-			subcount=2 && while [ $subcount -lt $subs ];do
-				for proxie in $(sed -n "/: $group/,/^  -/p" $CLASHDIR/proxy-groups_temp_$subcount.yaml | grep '    -' | awk '{for(i=2;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
-					proxie=$(echo $proxie | sed 's/#//g;s/*/ /g')
-					[ ! "$(sed -n "/: $group/,/*/p" $CLASHDIR/proxy-groups.yaml | grep "$proxie")" ] && echo "      - $proxie" >> $CLASHDIR/proxy-groups.yaml
-				done
-				let subcount++
-			done
-		done && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && [ "$exclude_type_name" ] && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
-		echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
-		echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
-		rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
+		fi
 	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && {
 		download "$CLASHDIR/cn_ip.txt" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
