@@ -30,7 +30,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
 [ ! "$dns_default" ] && dns_default='223.6.6.6'
-[ ! "$dns_fallback" ] && dns_fallback='tls://1.0.0.1, tls://8.8.4.4'
+[ ! "$dns_fallback" ] && dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query, https://dns.cloudflare.com/dns-query, https://dns.us.futuredns.eu.org/dns-query'
 [ ! "$mac_filter" ] && mac_filter=关
 [ ! "$mac_filter_mode" ] && mac_filter_mode=黑名单
 [ ! "$cnip_route" ] && cnip_route=关
@@ -154,7 +154,7 @@ saveconfig(){
 	echo "dns_port=$dns_port" >> $CLASHDIR/config.ini
 	echo "dns_default='$dns_default'" >> $CLASHDIR/config.ini
 	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.ini
-	echo -e "\n#以下配置只需要运行脚本并选择3-9即可修改" >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可生效" >> $CLASHDIR/config.ini
 	echo "dns_hijack=$dns_hijack" >> $CLASHDIR/config.ini
 	echo "dnsipv6_hijack=$dnsipv6_hijack" >> $CLASHDIR/config.ini
 	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.ini
@@ -162,12 +162,11 @@ saveconfig(){
 	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.ini
 	echo "cnipv6_route=$cnipv6_route" >> $CLASHDIR/config.ini
 	echo "common_ports=$common_ports" >> $CLASHDIR/config.ini
-	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.ini
-	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
-	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可马上生效" >> $CLASHDIR/config.ini
 	multiports=$(echo $multiports | sed 's/[^0-9\-]/,/g')
 	echo "multiports=$multiports" >> $CLASHDIR/config.ini
-	echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
+	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.ini
+	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
+	[ "$dns_server_ip_filter" ] && echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
 	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
 	return 0
 }
