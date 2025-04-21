@@ -1,3 +1,4 @@
+while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -m 1 -w "%{http_code}" -so /dev/null baidu.com)" = 200 ];do sleep 1;done
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
