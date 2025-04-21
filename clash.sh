@@ -1,4 +1,3 @@
-while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -m 1 -w "%{http_code}" -so /dev/null baidu.com)" = 200 ];do sleep 1;done
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
@@ -171,6 +170,20 @@ saveconfig(){
 	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
 	return 0
 }
+urlencode() {	
+	i=0
+	length="${#1}"
+	while [ true ];do
+		[ $length -gt $i ] && {
+			c="${1:$i:1}"
+			case $c in
+				[a-zA-Z0-9.~_-]) printf "$c";;
+				*) printf '%%%02X' "'$c";; 
+			esac
+		} || break
+	let i++
+	done
+}
 download(){
 	rm -f $1 && failedcount=0 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
 	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
@@ -200,6 +213,7 @@ download(){
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
+	while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -m 1 -w "%{http_code}" -so /dev/null baidu.com)" = 200 ];do sleep 1;done
 	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
 	[ ! -d $CLASHDIR/ui ] && {
@@ -219,8 +233,8 @@ update(){
 			exclude_type_temp=$(echo $exclude_type | sed 's/|/\\\|/g')
 			subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
 				[ "$udp_support" = "开" ] && sub_udp=true || sub_udp=false
-				url=$(echo $url | sed 's/;/\%3B/g;s|/|\%2F|g;s/?/\%3F/g;s/:/\%3A/g;s/@/\%40/g;s/=/\%3D/g;s/&/\%26/g')
-				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude_name=$exclude_name&url=$url&config=$config_url"
+				sublink_urlencode=$(urlencode "$url");exclude_name_urlencode=$(urlencode "$exclude_name");config_url_urlencode=$(urlencode "$config_url")
+				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash&new_name=true&scv=true&udp=$sub_udp&exclude_name=$exclude_name_urlencode&url=$sublink_urlencode&config=$config_url_urlencode"
 				[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
 					if [ -f $CLASHDIR/config_original.yaml.backup ];then
 						echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
