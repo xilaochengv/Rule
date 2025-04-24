@@ -181,7 +181,7 @@ urlencode() {
 				*) printf '%%%02X' "'$c";; 
 			esac
 		} || break
-	let i++
+		let i++
 	done
 }
 download(){
@@ -213,7 +213,7 @@ download(){
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
-	while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -m 1 -w "%{http_code}" -so /dev/null baidu.com)" = 200 ];do sleep 1;done
+	while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -kLm 1 -w %{http_code} -so /dev/null 163.com)" = 200 ];do sleep 1;done
 	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
 	[ ! -d $CLASHDIR/ui ] && {
