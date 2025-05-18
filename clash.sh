@@ -11,38 +11,38 @@ routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
-[ "$sublink" ] || sublink='订阅链接|多个订阅地址请用|竖线分割|subconver为开时可用'
-[ "$exclude_name" ] || exclude_name='节点名称过滤|多个关键字请用|竖线分割'
-[ "$exclude_type" ] || exclude_type='节点类型过滤|多个关键字请用|竖线分割'
-[ "$udp_support" ] || udp_support=关
-[ "$subconver" ] || subconver=开
-[ "$sub_url" ] || sub_url=https://url.v1.mk
-[ "$(echo $config_url | grep ^http)" ] || config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
-[ "$geoip_url" ] || geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
-[ "$geosite_url" ] || geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
-[ "$redir_port" ] || redir_port=25274
-[ "$authusername" ] || authusername=username
-[ "$authpassword" ] || authpassword=password
-[ "$dashboard_port" ] || dashboard_port=6789
-[ "$core_ipv6" ] || core_ipv6=开
-[ "$dns_ipv6" ] || dns_ipv6=开
-[ "$dns_hijack" ] || dns_hijack=关
-[ "$dnsipv6_hijack" -a "$dns_ipv6" != "开" -a "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] || dnsipv6_hijack=关
-[ "$dns_port" ] || dns_port=1053
-[ "$dns_default" ] && dns_default=$(echo $dns_default | sed 's/[^0-9.:]/, /g') || dns_default='223.6.6.6'
-[ "$dns_fallback" ] && dns_fallback=$(echo $dns_fallback | sed 's/[^0-9.:]/, /g') || dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query, https://dns.cloudflare.com/dns-query, https://dns.us.futuredns.eu.org/dns-query'
-[ "$mac_filter" ] || mac_filter=关
-[ "$mac_filter_mode" ] || mac_filter_mode=黑名单
-[ "$cnip_route" ] || cnip_route=关
-[ "$cnipv6_route" ] || cnipv6_route=关
-[ "$common_ports" ] || common_ports=关
-[ "$multiports" ] || multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
-[ "$Docker_Proxy" -a "$(ip route | grep docker | awk '{print $1}' | head -1)" ] || Docker_Proxy=关
-[ "$Clash_Local_Proxy" ] || Clash_Local_Proxy=关
+[ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割|subconver为开时可用'
+[ ! "$exclude_name" ] && exclude_name='节点名称过滤|多个关键字请用|竖线分割'
+[ ! "$exclude_type" ] && exclude_type='节点类型过滤|多个关键字请用|竖线分割'
+[ ! "$udp_support" ] && udp_support=关
+[ ! "$subconver" ] && subconver=开
+[ ! "$sub_url" ] && sub_url=https://url.v1.mk
+[ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
+[ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
+[ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
+[ ! "$redir_port" ] && redir_port=25274
+[ ! "$authusername" ] && authusername=username
+[ ! "$authpassword" ] && authpassword=password
+[ ! "$dashboard_port" ] && dashboard_port=6789
+[ ! "$core_ipv6" ] && core_ipv6=开
+[ ! "$dns_ipv6" ] && dns_ipv6=开
+[ ! "$dns_hijack" ] && dns_hijack=关
+[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
+[ ! "$dns_port" ] && dns_port=1053
+[ ! "$dns_default" ] && dns_default='223.6.6.6'
+[ ! "$dns_fallback" ] && dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query, https://dns.cloudflare.com/dns-query, https://dns.us.futuredns.eu.org/dns-query'
+[ ! "$mac_filter" ] && mac_filter=关
+[ ! "$mac_filter_mode" ] && mac_filter_mode=黑名单
+[ ! "$cnip_route" ] && cnip_route=关
+[ ! "$cnipv6_route" ] && cnipv6_route=关
+[ ! "$common_ports" ] && common_ports=关
+[ ! "$multiports" ] && multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
+[ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
+[ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
-[ "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] || echo -e "https://ghproxy.net\nhttps://gh-proxy.com\nhttps://github.moeyy.xyz\nhttps://mirror.ghproxy.com" > $CLASHDIR/mirror_server.ini
-[ "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] || echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
-[ "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] || echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
+[ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://ghproxy.net\nhttps://gh-proxy.com\nhttps://github.moeyy.xyz\nhttps://mirror.ghproxy.com" > $CLASHDIR/mirror_server.ini
+[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
+[ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
 [ ! -f $CLASHDIR/mihomo -a ! -f $CLASHDIR/GeoIP.dat -a ! -f $CLASHDIR/GeoSite.dat -a $Available -lt 3000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
 start(){
