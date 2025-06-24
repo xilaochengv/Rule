@@ -1,40 +1,39 @@
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
+[ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
 sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alias clash=\"$0\"" >> /etc/profile && sed -i '/./,/^$/!d' /etc/profile
 [ ! "$(uci -q get firewall.firewalluser.path)" ] && echo -e "config inculde 'firewalluser'\n\toption path '/etc/firewall.user'\n\toption reload '1'" >> /etc/config/firewall && sed -i '/./,/^$/!d' /etc/config/firewall
 sed -i '/clash/d' /etc/firewall.user 2> /dev/null;[ ! "$(grep "$0 start$" /etc/firewall.user 2> /dev/null)" ] && echo -e "[ \"\$(pidof mihomo)\" ] && $0 startfirewall" >> /etc/firewall.user
 route=$(ip route | grep br-lan | awk {'print $1'})
-routes="127.0.0.0/8 $route"
+routes="0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.168.0.0/16\n224.0.0.0/4\n240.0.0.0/4\n255.255.255.255\n$route";routes=$(echo -e $routes | awk '!a[$0]++')
 [ "$(uci -q get ipv6.settings.enabled)" = 0 ] && for routev6 in $(ip -6 route | awk '{print $1}');do ip -6 route del $routev6;done
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
 routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
 wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
 wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
-[ ! "$sublink" ] && sublink='订阅链接|多个订阅地址请用|竖线分割|subconver为开时可用'
-[ ! "$exclude_name" ] && exclude_name='节点名称过滤|多个关键字请用|竖线分割'
-[ ! "$exclude_type" ] && exclude_type='节点类型过滤|多个关键字请用|竖线分割'
 [ ! "$udp_support" ] && udp_support=关
 [ ! "$subconver" ] && subconver=开
 [ ! "$sub_url" ] && sub_url=https://url.v1.mk
 [ ! "$(echo $config_url | grep ^http)" ] && config_url=https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini
 [ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
 [ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
+[ ! "$redirect_mode" ] && redirect_mode=mixed
 [ ! "$redir_port" ] && redir_port=25274
-[ ! "$authusername" ] && authusername=username
-[ ! "$authpassword" ] && authpassword=password
+[ ! "$mixed_port" ] && mixed_port=25275
+[ ! "$tproxy_port" ] && tproxy_port=25276
 [ ! "$dashboard_port" ] && dashboard_port=6789
 [ ! "$core_ipv6" ] && core_ipv6=开
 [ ! "$dns_ipv6" ] && dns_ipv6=开
 [ ! "$dns_hijack" ] && dns_hijack=关
-[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
+[ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '^ .*ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
-[ ! "$dns_default" ] && dns_default='223.6.6.6'
-[ ! "$dns_fallback" ] && dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query, https://dns.cloudflare.com/dns-query, https://dns.us.futuredns.eu.org/dns-query'
+[ ! "$dns_default" ] && dns_default='223.6.6.6' || dns_default=$(echo $dns_default | sed 's/,/, /g')
+[ ! "$dns_fallback" ] && dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query' || dns_fallback=$(echo $dns_fallback | sed 's/,/, /g')
 [ ! "$mac_filter" ] && mac_filter=关
 [ ! "$mac_filter_mode" ] && mac_filter_mode=黑名单
-[ ! "$cnip_route" ] && cnip_route=关
-[ ! "$cnipv6_route" ] && cnipv6_route=关
+[ ! "$cnip_skip" ] && cnip_skip=关
+[ ! "$cnipv6_skip" ] && cnipv6_skip=关
 [ ! "$common_ports" ] && common_ports=关
 [ ! "$multiports" ] && multiports=53,80,123,143,194,443,465,587,853,993,995,5222,8080,8443
 [ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
@@ -47,14 +46,22 @@ Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${
 [ ! -f $CLASHDIR/mihomo -a ! -f $CLASHDIR/GeoIP.dat -a ! -f $CLASHDIR/GeoSite.dat -a $Available -lt 3000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
 start(){
 	stop start && update missingfiles
+	[ "$authusername" -a "$authpassword" ] && authentication="authentication: [\"$authusername:$authpassword\"]"
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
 	[ "$dns_ipv6" = "开" ] && ipv6_dns=true || ipv6_dns=false
+	[ "$redirect_mode" = "mixed" ] && tun="{ enable: true, stack: mixed, device: utun, auto-route: false, udp-timeout: 60 }" || {
+		modprobe xt_TPROXY 2> /dev/null && [ "$?" = 0 ] && tun="{ enable: false }" || {
+			redirect_mode=mixed
+			echo -e "\n${BLUE}TPROXY $RED内核模块不存在，已自动切换成 ${PINK}Mixed$RED（${YELLOW}REDIRECT + utun$RED）模式！$RESET"
+			tun="{ enable: true, stack: mixed, device: utun, auto-route: false, udp-timeout: 60 }" && saveconfig
+		}
+	}
 	cat > $CLASHDIR/config.yaml << EOF
 redir-port: $redir_port
-mixed-port: $(($redir_port+1))
+mixed-port: $mixed_port
+tproxy-port: $tproxy_port
 allow-lan: true
-authentication:
-  - "$authusername:$authpassword"
+$authentication
 log-level: debug
 ipv6: $ipv6_core
 keep-alive-interval: 30
@@ -90,12 +97,8 @@ sniffer:
   skip-domain:
     - Mijia Cloud
     - dlg.io.mi.com
-tun:
-  enable: true
-  stack: mixed
-  device: utun
-  auto-route: false
-  udp-timeout: 60
+tun: $tun
+routing_mark: 65536
 $(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml)
 EOF
 	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i "s/\'//g;s/GEOIP.*/&,no-resolve/" $CLASHDIR/rules.yaml
@@ -113,10 +116,10 @@ EOF
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
 	modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
-	while [ ! "$(ifconfig | grep utun)" ];do usleep 100000;done
+	[ "$redirect_mode" = "tproxy" ] || while [ ! "$(ifconfig | grep utun)" ];do usleep 100000;done
 	startfirewall && date +%s > $CLASHDIR/starttime
 	curl -so /dev/null "http://127.0.0.1:$dashboard_port/group/节点选择/delay?url=https://www.google.com/generate_204&timeout=5000" &
-	echo -e "hosto=\$(ip route | grep br-lan | awk {'print \$9'})\nipv4o=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\nipv6o=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\nwhile [ \"\$(pidof mihomo)\" ];do\n\tsleep 10\n\thostn=\$(ip route | grep br-lan | awk {'print \$9'})\n\tipv4n=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\n\tipv6n=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\n\t[ \"\$hostn\" -a \"\$hosto\" != \"\$hostn\" -o \"\$ipv4n\" -a \"\$ipv4o\" != \"\$ipv4n\" -o \"\$ipv6n\" -a \"\$ipv6o\" != \"\$ipv6n\" ] && { hosto=\$hostn && ipv4o=\$ipv4n && ipv6o=\$ipv6n && $0 startfirewall; }\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\n\t[ ! \"\$(iptables -w 5 -t mangle -S Clash)\" ] && $0 startfirewall\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
+	echo -e "hosto=\$(ip route | grep br-lan | awk {'print \$9'})\nipv4o=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\nipv6o=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\nwhile [ \"\$(pidof mihomo)\" ];do\n\tsleep 10\n\thostn=\$(ip route | grep br-lan | awk {'print \$9'})\n\tipv4n=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\n\tipv6n=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\n\t[ \"\$hostn\" -a \"\$hosto\" != \"\$hostn\" -o \"\$ipv4n\" -a \"\$ipv4o\" != \"\$ipv4n\" -o \"\$ipv6n\" -a \"\$ipv6o\" != \"\$ipv6n\" ] && { hosto=\$hostn && ipv4o=\$ipv4n && ipv6o=\$ipv6n && $0 startfirewall; }\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\n\t[ ! \"\$(iptables -w -t mangle -S Clash 2> /dev/null)\" ] && $0 startfirewall\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
 	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n" && rm -f $CLASHDIR/config_original.yaml.backup
 	rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
@@ -133,44 +136,55 @@ stop(){
 	return 0
 }
 saveconfig(){
-	echo "sublink='$sublink'" > $CLASHDIR/config.ini
-	echo "subconver=$subconver" >> $CLASHDIR/config.ini
-	echo "exclude_name='$exclude_name'" >> $CLASHDIR/config.ini
-	echo "exclude_type='$exclude_type'" >> $CLASHDIR/config.ini
-	echo "udp_support=$udp_support" >> $CLASHDIR/config.ini
-	echo "sub_url='$sub_url'" >> $CLASHDIR/config.ini
-	echo "mirrorserver='$mirrorserver'" >> $CLASHDIR/config.ini
-	echo "config_url='$config_url'" >> $CLASHDIR/config.ini
-	echo "geoip_url='$geoip_url'" >> $CLASHDIR/config.ini
-	echo "geosite_url='$geosite_url'" >> $CLASHDIR/config.ini
-	echo -e "\n#修改以下配置前，必须先运行脚本并选择2停止Clash-mihomo！否则修改前的防火墙规则无法清理干净！" >> $CLASHDIR/config.ini
-	echo "redir_port=$redir_port" >> $CLASHDIR/config.ini
-	echo -e "\n#以下配置修改后，需要重启Clash-mihomo后才能生效" >> $CLASHDIR/config.ini
-	echo "authusername='$authusername'" >> $CLASHDIR/config.ini
-	echo "authpassword='$authpassword'" >> $CLASHDIR/config.ini
-	echo "dashboard_port=$dashboard_port" >> $CLASHDIR/config.ini
-	echo "core_ipv6=$core_ipv6" >> $CLASHDIR/config.ini
-	echo "dns_ipv6=$dns_ipv6" >> $CLASHDIR/config.ini
-	echo "dns_port=$dns_port" >> $CLASHDIR/config.ini
-	echo "dns_default='$dns_default'" >> $CLASHDIR/config.ini
-	echo "dns_fallback='$dns_fallback'" >> $CLASHDIR/config.ini
-	echo -e "\n#以下配置修改后，需要运行脚本并选择3-9随意一项才可生效" >> $CLASHDIR/config.ini
-	echo "dns_hijack=$dns_hijack" >> $CLASHDIR/config.ini
-	echo "dnsipv6_hijack=$dnsipv6_hijack" >> $CLASHDIR/config.ini
-	echo "mac_filter=$mac_filter" >> $CLASHDIR/config.ini
-	echo "mac_filter_mode=$mac_filter_mode" >> $CLASHDIR/config.ini
-	echo "cnip_route=$cnip_route" >> $CLASHDIR/config.ini
-	echo "cnipv6_route=$cnipv6_route" >> $CLASHDIR/config.ini
-	echo "common_ports=$common_ports" >> $CLASHDIR/config.ini
+	echo "sublink='$sublink' #订阅链接地址，如有多个订阅链接地址请用竖线‘|’隔开" > $CLASHDIR/config.ini
+	echo "subconver=$subconver #是否使用订阅配置转换服务" >> $CLASHDIR/config.ini
+	echo "sub_url='$sub_url' #订阅配置转换服务器地址" >> $CLASHDIR/config.ini
+	echo "config_url='$config_url' #订阅配置转换规则文件地址（仅在订阅配置转换服务为开时可用）" >> $CLASHDIR/config.ini
+	echo "exclude_name='$exclude_name' #过滤包含关键字的节点（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
+	echo "exclude_type='$exclude_type' #过滤包含关键字的节点类型（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
+	echo "udp_support=$udp_support #是否开启udp代理（仅在订阅配置转换服务为开时可用，需要机场节点支持）" >> $CLASHDIR/config.ini
+	echo "mirrorserver='$mirrorserver' #Github加速镜像服务器地址" >> $CLASHDIR/config.ini
+	echo "geoip_url='$geoip_url' #GEO-IP数据库文件下载地址" >> $CLASHDIR/config.ini
+	echo "geosite_url='$geosite_url' #GEO-SITE数据库文件下载地址" >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置修改后，需要运行脚本并选择1重启Clash-mihomo后才能生效" >> $CLASHDIR/config.ini
+	echo "redirect_mode=$redirect_mode #流量代理模式（可选mixed或tproxy）" >> $CLASHDIR/config.ini
+	echo "redir_port=$redir_port #透明代理端口" >> $CLASHDIR/config.ini
+	echo "mixed_port=$mixed_port #http(s)和socks混合代理端口" >> $CLASHDIR/config.ini
+	echo "tproxy_port=$tproxy_port #TPROXY透明代理端口" >> $CLASHDIR/config.ini
+	echo "authusername='$authusername' #http(s),socks入口的验证用户名" >> $CLASHDIR/config.ini
+	echo "authpassword='$authpassword' #http(s),socks入口的验证密码" >> $CLASHDIR/config.ini
+	echo "dashboard_port=$dashboard_port #网页UI面板监听端口" >> $CLASHDIR/config.ini
+	echo "core_ipv6=$core_ipv6 #是否开启IPv6流量代理功能" >> $CLASHDIR/config.ini
+	echo "dns_ipv6=$dns_ipv6 #是否开启IPv6 DNS解析功能" >> $CLASHDIR/config.ini
+	echo "dns_port=$dns_port #DNS服务监听端口" >> $CLASHDIR/config.ini
+	echo "dns_default='$dns_default' #默认DNS解析服务器，如有多个请用逗号‘,’隔开" | sed 's/, /,/g' >> $CLASHDIR/config.ini
+	echo "dns_fallback='$dns_fallback' #海外DNS解析服务器，如有多个请用逗号‘,’隔开" | sed 's/, /,/g' >> $CLASHDIR/config.ini
+	echo -e "\n#以下配置修改后，需要运行脚本并选择4-9随意一项后才可生效" >> $CLASHDIR/config.ini
+	echo "dns_hijack=$dns_hijack #是否开启DNS IPv4解析服务流量劫持功能（开启后所有IPv4通过53端口的流量将直接转发到mihomo内核上进行DNS解析）" >> $CLASHDIR/config.ini
+	echo "dnsipv6_hijack=$dnsipv6_hijack #是否开启DNS IPv6解析服务流量劫持功能（开启后所有IPv6通过53端口的流量将直接转发到mihomo内核上进行DNS解析）" >> $CLASHDIR/config.ini
+	echo "mac_filter=$mac_filter #是否开启常用设备过滤功能" >> $CLASHDIR/config.ini
+	echo "mac_filter_mode=$mac_filter_mode #常用设备过滤功能工作模式（黑名单或白名单）" >> $CLASHDIR/config.ini
+	echo "cnip_skip=$cnip_skip #是否开启国内IPv4流量绕过核心功能（减轻运行内存负担）" >> $CLASHDIR/config.ini
+	echo "cnipv6_skip=$cnipv6_skip #是否开启国内IPv6流量绕过核心功能（减轻运行内存负担）" >> $CLASHDIR/config.ini
+	echo "common_ports=$common_ports #是否开启仅常用端口代理功能" >> $CLASHDIR/config.ini
 	multiports=$(echo $multiports | sed 's/[^0-9\-]/,/g')
-	echo "multiports=$multiports" >> $CLASHDIR/config.ini
-	echo "Docker_Proxy=$Docker_Proxy" >> $CLASHDIR/config.ini
-	echo "Clash_Local_Proxy=$Clash_Local_Proxy" >> $CLASHDIR/config.ini
-	[ "$dns_server_ip_filter" ] && echo "dns_server_ip_filter='$dns_server_ip_filter'" >> $CLASHDIR/config.ini
-	[ ! "$(echo $sublink | grep //)" ] && echo -e "$RED请先在 $SKYBLUE$CLASHDIR/config.ini $RED文件中填写好订阅链接地址！$YELLOW（现在退出并重进SSH即可直接使用clash命令）$RESET" && exit
+	echo "multiports=$multiports #常用端口（如有多个请用逗号‘,’隔开，连续的端口可以用如‘-’符号连接，如：80,123,400-432,8080）" >> $CLASHDIR/config.ini
+	echo "Docker_Proxy=$Docker_Proxy #是否开启Docker流量代理功能" >> $CLASHDIR/config.ini
+	echo "Clash_Local_Proxy=$Clash_Local_Proxy #是否开启本机流量代理功能" >> $CLASHDIR/config.ini
+	[ ! "$(echo $sublink | awk '{print $1}' | grep -E '^http://.*\.[^$]|^https://.*\.[^$]')" ] && {
+		[ "$1" ] || echo -e "\n$RED请先填写好订阅链接地址！$RESET\n"
+		read -p "请输入订阅链接地址（如有多个请用竖线‘|’隔开）：" sublink
+		if [ "$(echo $sublink | awk '{print $1}' | grep -E '^http://.*\.[^$]|^https://.*\.[^$]')" ];then
+			saveconfig && echo -e "\n$YELLOW填写成功！当前订阅链接地址：$SKYBLUE$sublink$RESET" && sleep 1
+		elif [ "$sublink" ];then
+			echo -e "\n$YELLOW请输入正确格式以http开头的订阅链接地址！$RESET\n" && sleep 1 && saveconfig retype
+		else
+			echo -e "\n$RED放弃输入，已自动退出脚本！$RESET\n" && exit
+		fi
+	}
 	return 0
 }
-urlencode() {	
+urlencode() {
 	i=0
 	length="${#1}"
 	while [ true ];do
@@ -178,29 +192,29 @@ urlencode() {
 			c="${1:$i:1}"
 			case $c in
 				[a-zA-Z0-9.~_-]) printf "$c";;
-				*) printf '%%%02X' "'$c";; 
+				*) printf '%%%02X' "'$c";;
 			esac
 		} || break
 		let i++
 	done
 }
 download(){
-	rm -f $1 && failedcount=0 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	rm -f $1 && failedcount=1 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
 	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
 	http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 	while [ $? != 0 -a $failedcount -lt 3 -o $http_code != 200 -a $failedcount -lt 3 ];do
-		rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
+		rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
 		echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 	done
 	[ $? != 0 -o $http_code != 200 ] && {
 		if [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
 			for mirrorserver in $(cat $CLASHDIR/mirror_server.ini);do
-				rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=0
+				rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=1
 				dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
 				echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
 				http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 				while [ $? != 0 -a $failedcount -lt 3 -o $http_code != 200 -a $failedcount -lt 3 ];do
-					rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已重试次数：$failedcount$RESET" && sleep 1 && let failedcount++
+					rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
 					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 				done
 				[ $? = 0 -a $http_code = 200 ] && mirrorserver=$mirrorserver && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
@@ -246,7 +260,7 @@ update(){
 				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
 				sed -n '/^proxy-groups/,/^rules/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 > $CLASHDIR/proxy-groups_temp_$subs.yaml
 				sed -n '/^proxies/,/^proxy-groups/p' $CLASHDIR/config_original_temp_$subs.yaml | tail +2 >> $CLASHDIR/proxies.yaml && sed -i '/proxy-groups/d' $CLASHDIR/proxies.yaml && let subs++
-			done && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && [ "$exclude_type_name" ] && sed -i "/type: .*$exclude_type_temp/d" $CLASHDIR/proxies.yaml
+			done && [ "$exclude_type_temp" ] && exclude_type_name=$(grep $exclude_type_temp $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && [ "$exclude_type_name" ] && sed -i "/type: .*$exclude_type_temp/d" $CLASHDIR/proxies.yaml
 			for group in $(grep '\- name:' $CLASHDIR/proxy-groups_temp_1.yaml | awk '{for(i=3;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/.$//;s/^/#/;s/$/#/;s/ /*/g');do
 				group="$(echo $group | sed 's/#//g;s/*/ /g')"
 				sed -n "/: $group/,/^      -/p" $CLASHDIR/proxy-groups_temp_1.yaml | head -n -1 >> $CLASHDIR/proxy-groups.yaml
@@ -274,11 +288,11 @@ update(){
 			}
 		fi
 	}
-	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_route" = "开" ] && {
+	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_skip" = "开" ] && {
 		download "$CLASHDIR/cn_ip.txt" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && {
+	[ ! -f $CLASHDIR/cn_ipv6.txt -a "$core_ipv6" = "开" -a "$cnipv6_skip" = "开" ] && {
 		download "$CLASHDIR/cn_ipv6.txt" "CN-IPV6数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ipv6.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
@@ -295,86 +309,153 @@ update(){
 }
 startfirewall(){
 	stopfirewall && update missingfiles
-	ip route add default dev utun table 100 2> /dev/null
-	ip rule add fwmark $redir_port table 100
-	[ "$core_ipv6" = "开" ] && {
-		ip -6 route add default dev utun table 100 2> /dev/null
-		ip -6 rule add fwmark $redir_port table 100
+	iptables -w -t mangle -N Clash && [ "$redirect_mode" = "tproxy" ] || iptables -w -t nat -N Clash
+	[ "$cnip_skip" = "开" ] && echo "create cn_ip hash:net" > /tmp/cn_ip.ipset && sed 's/.*/add cn_ip &/' $CLASHDIR/cn_ip.txt >> /tmp/cn_ip.ipset && ipset -! restore < /tmp/cn_ip.ipset && rm -f /tmp/cn_ip.ipset
+	[ "$wanipv4" ] && {
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash -d $wanipv4 -m comment --comment "流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN || {
+			iptables -w -t mangle -A Clash -d $wanipv4 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
+			iptables -w -t nat -A Clash -d $wanipv4 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
+		}
 	}
-	[ "$cnip_route" = "开" ] && echo "create cn_ip hash:net" > /tmp/cn_ip.ipset && sed 's/.*/add cn_ip &/' $CLASHDIR/cn_ip.txt >> /tmp/cn_ip.ipset && ipset -! restore < /tmp/cn_ip.ipset && rm -f /tmp/cn_ip.ipset
-	[ "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && echo "create cn_ipv6 hash:net family inet6" > /tmp/cn_ipv6.ipset && sed 's/.*/add cn_ipv6 &/' $CLASHDIR/cn_ipv6.txt >> /tmp/cn_ipv6.ipset && ipset -! restore < /tmp/cn_ipv6.ipset && rm -f /tmp/cn_ipv6.ipset
-	iptables -w 5 -t mangle -N Clash && iptables -w 5 -t nat -N Clash
-	[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t mangle -N Clash && ip6tables -w 5 -t nat -N Clash
+	for ip in $routes;do
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash -d $ip -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN || {
+			iptables -w -t mangle -A Clash -d $ip -p udp -m comment --comment "udp流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
+			iptables -w -t nat -A Clash -d $ip -p tcp -m comment --comment "tcp流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
+		}
+	done
+	[ "$cnip_skip" = "开" ] && {
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash -m set --match-set cn_ip dst -m comment --comment "流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN || {
+			iptables -w -t mangle -A Clash -m set --match-set cn_ip dst -p udp -m comment --comment "udp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
+			iptables -w -t nat -A Clash -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
+		}
+	}
+	[ "$core_ipv6" = "开" ] && {
+		ip6tables -w -t mangle -N Clash && [ "$redirect_mode" = "tproxy" ] || ip6tables -w -t nat -N Clash
+		[ "$cnipv6_skip" = "开" ] && echo "create cn_ipv6 hash:net family inet6" > /tmp/cn_ipv6.ipset && sed 's/.*/add cn_ipv6 &/' $CLASHDIR/cn_ipv6.txt >> /tmp/cn_ipv6.ipset && ipset -! restore < /tmp/cn_ipv6.ipset && rm -f /tmp/cn_ipv6.ipset
+		[ "$wanipv6" ] && {
+			[ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash -d $wanipv6 -m comment --comment "流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN || {
+				ip6tables -w -t mangle -A Clash -d $wanipv6 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
+				ip6tables -w -t nat -A Clash -d $wanipv6 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
+			}
+		}
+		for ip in $(ifconfig br-lan | grep -oE fe80.* | awk -F / '{print $1"/128"}') $routesv6;do
+			[ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash -d $ip -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN || {
+				ip6tables -w -t mangle -A Clash -d $ip -p udp -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
+				ip6tables -w -t nat -A Clash -d $ip -p tcp -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
+			}
+		done
+		[ "$cnipv6_skip" = "开" ] && {
+			[ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash -m set --match-set cn_ipv6 dst -m comment --comment "流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN || {
+				ip6tables -w -t mangle -A Clash -m set --match-set cn_ipv6 dst -p udp -m comment --comment "udp流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
+				ip6tables -w -t nat -A Clash -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
+			}
+		}
+	}
+	[ "$dns_hijack" = "开" ] && {
+		iptables -w -t nat -N Clash_DNS
+		iptables -w -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		iptables -w -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
+		iptables -w -t nat -A Clash_DNS -d $localip -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		iptables -w -t nat -A Clash_DNS -s 127.0.0.0/8 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+	}
+	[ "$dnsipv6_hijack" = "开" ] && {
+		ip6tables -w -t nat -N Clash_DNS
+		ip6tables -w -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
+		ip6tables -w -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
+		ip6tables -w -t nat -A Clash_DNS -d $(ifconfig br-lan | grep -oE fe80.* | awk -F / '{print $1"/128"}') -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		ip6tables -w -t nat -A Clash_DNS -s ::1 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+	}
 	if [ "$common_ports" = "开" ];then
 		ports="" && amount=0 && for port in $(echo $multiports | awk -F , '{for(i=1;i<=NF;i++){print $i};}');do
 			[ "$(echo $port | grep -)" ] && port=$(echo $port | sed 's/-/:/') && let amount++
 			[ $amount == 15 ] && {
 				ports=$(echo $ports | sed 's/^,//')
-				iptables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-				iptables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-				[ "$core_ipv6" = "开" ] && {
-					ip6tables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-					ip6tables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-				}
+				if [ "$redirect_mode" = "tproxy" ];then
+					iptables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					[ "$core_ipv6" = "开" ] && {
+						ip6tables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+						ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					}
+				else
+					iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					iptables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					[ "$core_ipv6" = "开" ] && {
+						ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+						ip6tables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					}
+				fi
 				amount=1 && ports=""
 			}
 			ports="$ports,$port" && let amount++
 			[ $amount == 15 ] && {
 				ports=$(echo $ports | sed 's/^,//')
-				iptables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-				iptables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-				[ "$core_ipv6" = "开" ] && {
-					ip6tables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-					ip6tables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-				}
+				if [ "$redirect_mode" = "tproxy" ];then
+					iptables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					[ "$core_ipv6" = "开" ] && {
+						ip6tables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+						ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					}
+				else
+					iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					iptables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					[ "$core_ipv6" = "开" ] && {
+						ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+						ip6tables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					}
+				fi
 				amount=0 && ports=""
 			}
 		done
 		[ "$ports" ] && {
 			ports=$(echo $ports | sed 's/^,//')
-			iptables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-			iptables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-			[ "$core_ipv6" = "开" ] && {
-				ip6tables -w 5 -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
-				ip6tables -w 5 -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
-			}
+			if [ "$redirect_mode" = "tproxy" ];then
+				iptables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+				iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+				[ "$core_ipv6" = "开" ] && {
+					ip6tables -w -t mangle -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+					ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+				}
+			else
+				iptables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+				iptables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+				[ "$core_ipv6" = "开" ] && {
+					ip6tables -w -t mangle -A PREROUTING -p udp -m multiport --dports $ports -m comment --comment "udp常用端口流量进入Clash规则链" -j Clash
+					ip6tables -w -t nat -A PREROUTING -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口流量进入Clash规则链" -j Clash
+				}
+			fi
 		}
 	else
-		iptables -w 5 -t mangle -A PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash
-		iptables -w 5 -t nat -A PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A PREROUTING -m comment --comment "流量进入Clash规则链" -j Clash || {
+			iptables -w -t nat -A PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash
+			iptables -w -t mangle -A PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash
+		}
 		[ "$core_ipv6" = "开" ] && {
-			ip6tables -w 5 -t mangle -A PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash
-			ip6tables -w 5 -t nat -A PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash
+			[ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A PREROUTING -m comment --comment "流量进入Clash规则链" -j Clash || {
+				ip6tables -w -t nat -A PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash
+				ip6tables -w -t mangle -A PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash
+			}
 		}
 	fi
-	iptables -w 5 -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
-	[ "$core_ipv6" = "开" ] && ip6tables -w 5 -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
-	[ "$wanipv4" ] && {
-		iptables -w 5 -t mangle -A Clash -d $wanipv4 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
-		iptables -w 5 -t nat -A Clash -d $wanipv4 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
-		[ "$wanipv6" -a "$core_ipv6" = "开" ] && {
-			ip6tables -w 5 -t mangle -A Clash -d $wanipv6 -p udp -m comment --comment "udp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
-			ip6tables -w 5 -t nat -A Clash -d $wanipv6 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv6地址，直接绕过Clash内核" -j RETURN
+	if [ "$redirect_mode" = "tproxy" ];then
+		modprobe xt_TPROXY		
+		ip rule add fwmark $tproxy_port table 100
+		ip route add local default dev lo table 100
+		[ "$core_ipv6" = "开" ] && {
+			ip -6 rule add fwmark $tproxy_port table 101
+			ip -6 route add local default dev lo table 101
 		}
-	}
-	for ip in $routes;do
-		iptables -w 5 -t mangle -A Clash -d $ip -p udp -m comment --comment "udp流量目的地为本地IP网段，直接绕过Clash内核" -j RETURN
-		iptables -w 5 -t nat -A Clash -d $ip -p tcp -m comment --comment "tcp流量目的地为本地IP网段，直接绕过Clash内核" -j RETURN
-	done
-	[ "$core_ipv6" = "开" ] && {
-		for ip in $routesv6;do
-			ip6tables -w 5 -t mangle -A Clash -d $ip -p udp -m comment --comment "udp流量目的地为本地IPv6网段，直接绕过Clash内核" -j RETURN
-			ip6tables -w 5 -t nat -A Clash -d $ip -p tcp -m comment --comment "tcp流量目的地为本地IPv6网段，直接绕过Clash内核" -j RETURN
-		done
-	}
-	[ "$cnip_route" = "开" ] && {
-		iptables -w 5 -t mangle -A Clash -m set --match-set cn_ip dst -p udp -m comment --comment "udp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
-		iptables -w 5 -t nat -A Clash -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
-	}
-	[ "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && {
-		ip6tables -w 5 -t mangle -A Clash -m set --match-set cn_ipv6 dst -p udp -m comment --comment "udp流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
-		ip6tables -w 5 -t nat -A Clash -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
-	}
+	else
+		ip route add default dev utun table 100
+		ip rule add fwmark $redir_port table 100
+		[ "$core_ipv6" = "开" ] && {
+			ip -6 route add default dev utun table 101
+			ip -6 rule add fwmark $redir_port table 101
+		}
+		iptables -w -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
+		[ "$core_ipv6" = "开" ] && ip6tables -w -I FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT
+	fi
 	[ "$mac_filter" = "开" ] && {
 		if [ "$(grep -v '^ *#' $CLASHDIR/maclist.ini 2> /dev/null)" ];then
 			while read LINE;do
@@ -383,30 +464,58 @@ startfirewall(){
 				device=$(echo $LINE | grep -v '^ *#' | awk '{for(i=2;i<=NF;i++){printf"%s ",$i};print out}' | sed 's/ $//');[ ! "$device" ] && device=设备名称未填写
 				[ "$ip" ] && [ "$ip" != "$localip" ] && {
 					if [ "$mac_filter_mode" = "白名单" ];then
-						iptables -w 5 -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
-						iptables -w 5 -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip $RED加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
+						[ "$redirect_mode" = "tproxy" ] && {
+							iptables -w -t mangle -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+							iptables -w -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+						} || {
+							iptables -w -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
+							iptables -w -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+						}
+						[ "$core_ipv6" = "开" ] && echo -e "\n$BLUE$ip $RED加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
 					else
-						iptables -w 5 -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
-						iptables -w 5 -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						[ "$core_ipv6" = "开" ] && echo -e "$BLUE$ip $RED加入ipv6防火墙黑名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
+						[ "$redirect_mode" = "tproxy" ] && {
+							iptables -w -t mangle -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+							iptables -w -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+						} || {
+							iptables -w -t mangle -A Clash -s $ip -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+							iptables -w -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+						}
+						[ "$core_ipv6" = "开" ] && echo -e "\n$BLUE$ip $RED加入ipv6防火墙黑名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
 					fi
 				}
 				[ "$mac" ] && {
 					if [ "$mac_filter_mode" = "白名单" ];then
-						iptables -w 5 -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
-						iptables -w 5 -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						[ "$core_ipv6" = "开" ] && {
-							ip6tables -w 5 -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
-							ip6tables -w 5 -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
-						}
+						if [ "$redirect_mode" = "tproxy" ];then
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+							[ "$core_ipv6" = "开" ] && {
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+							}
+						else
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
+							iptables -w -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+							[ "$core_ipv6" = "开" ] && {
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
+								ip6tables -w -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+							}
+						fi
 					else
-						iptables -w 5 -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
-						iptables -w 5 -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						[ "$core_ipv6" = "开" ] && {
-							ip6tables -w 5 -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
-							ip6tables -w 5 -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
-						}
+						if [ "$redirect_mode" = "tproxy" ];then
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+							[ "$core_ipv6" = "开" ] && {
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+							}
+						else
+							iptables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+							iptables -w -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+							[ "$core_ipv6" = "开" ] && {
+								ip6tables -w -t mangle -A Clash -m mac --mac-source $mac -p udp -m comment --comment "udp流量禁止进入Clash内核（$device）" -j RETURN
+								ip6tables -w -t nat -A Clash -m mac --mac-source $mac -p tcp -m comment --comment "tcp流量禁止进入Clash内核（$device）" -j RETURN
+							}
+						fi
 					fi
 				}
 			done < $CLASHDIR/maclist.ini
@@ -416,165 +525,243 @@ startfirewall(){
 		fi
 	}
 	[ "$mac_filter" != "开" -o "$mac_filter_mode" != "白名单" ] && {
-		iptables -w 5 -t mangle -A Clash -s $route -p udp -m comment --comment "udp流量进入Clash内核（$route网段）" -j MARK --set-mark $redir_port
-		iptables -w 5 -t nat -A Clash -s $route -p tcp -m comment --comment "tcp流量进入Clash内核（$route网段）" -j REDIRECT --to-port $redir_port
-		[ "$core_ipv6" = "开" ] && {
-			for route6 in $routev6;do
-				ip6tables -w 5 -t mangle -A Clash -s $route6 -p udp -m comment --comment "udp流量进入Clash内核（$route6网段）" -j MARK --set-mark $redir_port
-				ip6tables -w 5 -t nat -A Clash -s $route6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route6网段）" -j REDIRECT --to-port $redir_port
-			done
-		}
+		if [ "$redirect_mode" = "tproxy" ];then
+			iptables -w -t mangle -A Clash -s $route -p tcp -m comment --comment "tcp流量进入Clash内核（$route网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			iptables -w -t mangle -A Clash -s $route -p udp -m comment --comment "udp流量进入Clash内核（$route网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			[ "$core_ipv6" = "开" ] && {
+				for route6 in $routev6;do
+					ip6tables -w -t mangle -A Clash -s $route6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route6网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+					ip6tables -w -t mangle -A Clash -s $route6 -p udp -m comment --comment "udp流量进入Clash内核（$route6网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+				done
+			}
+		else
+			iptables -w -t mangle -A Clash -s $route -p udp -m comment --comment "udp流量进入Clash内核（$route网段）" -j MARK --set-mark $redir_port
+			iptables -w -t nat -A Clash -s $route -p tcp -m comment --comment "tcp流量进入Clash内核（$route网段）" -j REDIRECT --to-port $redir_port
+			[ "$core_ipv6" = "开" ] && {
+				for route6 in $routev6;do
+					ip6tables -w -t mangle -A Clash -s $route6 -p udp -m comment --comment "udp流量进入Clash内核（$route6网段）" -j MARK --set-mark $redir_port
+					ip6tables -w -t nat -A Clash -s $route6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route6网段）" -j REDIRECT --to-port $redir_port
+				done
+			}
+		fi
 	}
 	[ "$Docker_Proxy" = "开" ] && [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && {
 		route_docker=$(ip route | grep docker | awk '{print $1}' | head -1)
 		route_dockerv6=$(ip -6 route | grep docker | awk '{print $1}')
-		iptables -w 5 -t mangle -A Clash -s $route_docker -p udp -m comment --comment "udp流量进入Clash内核（$route_docker网段）" -j MARK --set-mark $redir_port
-		iptables -w 5 -t nat -A Clash -s $route_docker -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker网段）" -j REDIRECT --to-port $redir_port
-		[ "$core_ipv6" = "开" ] && {
-			for route_docker6 in $route_dockerv6;do
-				ip6tables -w 5 -t mangle -A Clash -s $route_dockerv6 -p udp -m comment --comment "udp流量进入Clash内核（$route_dockerv6网段）" -j MARK --set-mark $redir_port
-				ip6tables -w 5 -t nat -A Clash -s $route_dockerv6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route_dockerv6网段）" -j REDIRECT --to-port $redir_port
-			done
-		}
-	}
-	[ "$dns_hijack" = "开" ] && {
-		iptables -w 5 -t nat -N Clash_DNS
-		iptables -w 5 -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
-		iptables -w 5 -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
-		iptables -w 5 -t nat -A Clash_DNS -d $localip -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
-		iptables -w 5 -t nat -A Clash_DNS -s 127.0.0.0/8 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
-	}
-	[ "$dnsipv6_hijack" = "开" ] && {
-		ip6tables -w 5 -t nat -N Clash_DNS
-		ip6tables -w 5 -t nat -I PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS
-		ip6tables -w 5 -t nat -I OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS
-		for localipv6dns in $(route -A inet6 | grep '^fe80.*[0-9a-f]/128.*Un' | awk '{print $1}');do
-			ip6tables -w 5 -t nat -A Clash_DNS -d $localipv6dns -p udp --dport 53 -m comment --comment "DNS流量进入Clash内核" -j REDIRECT --to-ports $dns_port
-		done
-		ip6tables -w 5 -t nat -A Clash_DNS -s ::1 -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash内核" -j REDIRECT --to-ports $dns_port
+		if [ "$redirect_mode" = "tproxy" ];then
+			iptables -w -t mangle -A Clash -s $route_docker -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			iptables -w -t mangle -A Clash -s $route_docker -p udp -m comment --comment "udp流量进入Clash内核（$route_docker网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			[ "$core_ipv6" = "开" ] && {
+				for route_docker6 in $route_dockerv6;do
+					ip6tables -w -t mangle -A Clash -s $route_docker6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker6网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+					ip6tables -w -t mangle -A Clash -s $route_docker6 -p udp -m comment --comment "udp流量进入Clash内核（$route_docker6网段）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+				done
+			}
+		else
+			iptables -w -t mangle -A Clash -s $route_docker -p udp -m comment --comment "udp流量进入Clash内核（$route_docker网段）" -j MARK --set-mark $redir_port
+			iptables -w -t nat -A Clash -s $route_docker -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker网段）" -j REDIRECT --to-port $redir_port
+			[ "$core_ipv6" = "开" ] && {
+				for route_docker6 in $route_dockerv6;do
+					ip6tables -w -t mangle -A Clash -s $route_docker6 -p udp -m comment --comment "udp流量进入Clash内核（$route_docker6网段）" -j MARK --set-mark $redir_port
+					ip6tables -w -t nat -A Clash -s $route_docker6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker6网段）" -j REDIRECT --to-port $redir_port
+				done
+			}
+		fi
 	}
 	[ "$wanipv4" -a "$Clash_Local_Proxy" = "开" ] && {
-		iptables -w 5 -t nat -N Clash_Local_Proxy
-		[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -N Clash_Local_Proxy
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -N Clash_Local_Proxy && iptables -w -t mangle -N Clash_Local_Proxy_PREROUTING || iptables -w -t nat -N Clash_Local_Proxy
+		[ "$core_ipv6" = "开" ] && { [ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -N Clash_Local_Proxy && ip6tables -w -t mangle -N Clash_Local_Proxy_PREROUTING || ip6tables -w -t nat -N Clash_Local_Proxy; }
 		if [ "$common_ports" = "开" ];then
 			ports="" && amount=0 && for port in $(echo $multiports | awk -F , '{for(i=1;i<=NF;i++){print $i};}');do
 				[ "$(echo $port | grep -)" ] && port=$(echo $port | sed 's/-/:/') && let amount++
 				[ $amount == 15 ] && {
 					ports=$(echo $ports | sed 's/^,//')
-					iptables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
-					[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					if [ "$redirect_mode" = "tproxy" ];then
+						iptables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						iptables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						[ "$core_ipv6" = "开" ] && {
+							ip6tables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+							ip6tables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						}
+					else
+						iptables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						[ "$core_ipv6" = "开" ] && ip6tables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					fi
 					amount=1 && ports=""
 				}
 				ports="$ports,$port" && let amount++
 				[ $amount == 15 ] && {
 					ports=$(echo $ports | sed 's/^,//')
-					iptables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
-					[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
-					amount=0 && ports=""
+					if [ "$redirect_mode" = "tproxy" ];then
+						iptables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						iptables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						[ "$core_ipv6" = "开" ] && {
+							ip6tables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+							ip6tables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						}
+					else
+						iptables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						[ "$core_ipv6" = "开" ] && ip6tables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					fi
+					amount=1 && ports=""
 				}
 			done
 			[ "$ports" ] && {
 				ports=$(echo $ports | sed 's/^,//')
-				iptables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
-				[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+				if [ "$redirect_mode" = "tproxy" ];then
+					iptables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					iptables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					[ "$core_ipv6" = "开" ] && {
+						ip6tables -w -t mangle -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+						ip6tables -w -t mangle -A OUTPUT -p udp -m multiport --dports $ports -m comment --comment "udp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					}
+				else
+					iptables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+					[ "$core_ipv6" = "开" ] && ip6tables -w -t nat -A OUTPUT -p tcp -m multiport --dports $ports -m comment --comment "tcp常用端口本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+				fi
 			}
 		else
-			iptables -w 5 -t nat -A OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
-			[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+			[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A OUTPUT -m comment --comment "本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy || \
+			iptables -w -t nat -A OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy
+			[ "$core_ipv6" = "开" ] && { [ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A OUTPUT -m comment --comment "本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy || \
+			ip6tables -w -t nat -A OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy; }
 		fi
-		iptables -w 5 -t nat -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机tcp流量防止回环" -j RETURN
-		[ "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机tcp流量防止回环" -j RETURN
-		[ "$dns_server_ip_filter" ] && {
-			for dns_server_ip in $dns_server_ip_filter;do
-				iptables -w 5 -t nat -A Clash_Local_Proxy -d $dns_server_ip -p tcp -m comment --comment "tcp本机流量目的地为dns服务器地址（$dns_server_ip），直接绕过Clash内核" -j RETURN
-			done
+		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机流量防止回环" -j RETURN || \
+		iptables -w -t nat -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机tcp流量防止回环" -j RETURN
+		for ip in $routes;do
+			[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash_Local_Proxy -d $ip -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN || \
+			iptables -w -t nat -A Clash_Local_Proxy -d $ip -p tcp -m comment --comment "tcp流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
+		done
+		[ "$cnip_skip" = "开" ] && { [ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash_Local_Proxy -m set --match-set cn_ip dst -m comment --comment "本机流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN || \
+		iptables -w -t nat -A Clash_Local_Proxy -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN; }
+		[ "$core_ipv6" = "开" ] && {
+			[ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机流量防止回环" -j RETURN || \
+			ip6tables -w -t nat -A Clash_Local_Proxy -m owner --gid-owner $redir_port -m comment --comment "Clash 本机tcp流量防止回环" -j RETURN
+			for ip in $routesv6;do [ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash_Local_Proxy -d $ip -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN || \
+			ip6tables -w -t nat -A Clash_Local_Proxy -d $ip -p tcp -m comment --comment "tcp流量目的地为流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN;done
+			[ "$cnipv6_skip" = "开" ] && { [ "$redirect_mode" = "tproxy" ] && ip6tables -w -t mangle -A Clash_Local_Proxy -m set --match-set cn_ipv6 dst -m comment --comment "本机流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN || \
+			ip6tables -w -t nat -A Clash_Local_Proxy -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN; }
 		}
-		[ "$cnip_route" = "开" ] && iptables -w 5 -t nat -A Clash_Local_Proxy -m set --match-set cn_ip dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv4地址，直接绕过Clash内核" -j RETURN
-		[ "$core_ipv6" = "开" -a "$cnipv6_route" = "开" ] && ip6tables -w 5 -t nat -A Clash_Local_Proxy -m set --match-set cn_ipv6 dst -p tcp -m comment --comment "tcp本机流量目的地为国内IPv6地址，直接绕过Clash内核" -j RETURN
-		iptables -w 5 -t nat -A Clash_Local_Proxy -s $wanipv4 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
-		[ "$wanipv6" -a "$core_ipv6" = "开" ] && ip6tables -w 5 -t nat -A Clash_Local_Proxy -s $wanipv6 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
+		if [ "$redirect_mode" = "tproxy" ];then
+			iptables -w -t mangle -A Clash_Local_Proxy -s $wanipv4 -m comment --comment "本机流量标记" -j MARK --set-mark $tproxy_port
+			iptables -w -t mangle -A PREROUTING -m mark --mark $tproxy_port -m comment --comment "本机流量进入Clash_Local_Proxy_PREROUTING规则链" -j Clash_Local_Proxy_PREROUTING
+			iptables -w -t mangle -A Clash_Local_Proxy_PREROUTING -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			iptables -w -t mangle -A Clash_Local_Proxy_PREROUTING -p udp -m comment --comment "udp本机流量进入Clash内核" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			[ "$wanipv6" -a "$core_ipv6" = "开" ] && {
+				ip6tables -w -t mangle -A Clash_Local_Proxy -s $wanipv6 -m comment --comment "本机流量标记" -j MARK --set-mark $tproxy_port
+				ip6tables -w -t mangle -A PREROUTING -m mark --mark $tproxy_port -m comment --comment "本机流量进入Clash_Local_Proxy_PREROUTING规则链" -j Clash_Local_Proxy_PREROUTING
+				ip6tables -w -t mangle -A Clash_Local_Proxy_PREROUTING -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+				ip6tables -w -t mangle -A Clash_Local_Proxy_PREROUTING -p udp -m comment --comment "udp本机流量进入Clash内核" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
+			}
+		else
+			iptables -w -t nat -A Clash_Local_Proxy -s $wanipv4 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
+			[ "$wanipv6" -a "$core_ipv6" = "开" ] && ip6tables -w -t nat -A Clash_Local_Proxy -s $wanipv6 -p tcp -m comment --comment "tcp本机流量进入Clash内核" -j REDIRECT --to-port $redir_port
+		fi
 	}
 	return 0
 }
 stopfirewall(){
-	while [ "$(ip6tables -w 5 -t nat -S OUTPUT | grep 常用端口)" ];do
-		eval ip6tables -w 5 -t nat $(ip6tables -w 5 -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	ip6tables -w 5 -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
-	ip6tables -w 5 -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
-	ip6tables -w 5 -t nat -F Clash_DNS 2> /dev/null
-	ip6tables -w 5 -t nat -X Clash_DNS 2> /dev/null
-	ip6tables -w 5 -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
-	ip6tables -w 5 -t nat -F Clash_Local_Proxy 2> /dev/null
-	ip6tables -w 5 -t nat -X Clash_Local_Proxy 2> /dev/null
-	ip6tables -w 5 -D FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT 2> /dev/null
-	while [ "$(ip6tables -w 5 -t nat -S PREROUTING | grep 常用端口流量)" ];do
-		eval ip6tables -w 5 -t nat $(ip6tables -w 5 -t nat -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	ip6tables -w 5 -t nat -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
-	ip6tables -w 5 -t nat -F Clash 2> /dev/null
-	ip6tables -w 5 -t nat -X Clash 2> /dev/null
-	while [ "$(ip6tables -w 5 -t mangle -S PREROUTING | grep 常用端口流量)" ];do
-		eval ip6tables -w 5 -t mangle $(ip6tables -w 5 -t mangle -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	ip6tables -w 5 -t mangle -D PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash 2> /dev/null
-	ip6tables -w 5 -t mangle -F Clash 2> /dev/null
-	ip6tables -w 5 -t mangle -X Clash 2> /dev/null
-	ipset -q destroy cn_ipv6
-	ip -6 rule del fwmark $redir_port table 100 2> /dev/null
-	while [ "$(iptables -w 5 -t nat -S OUTPUT | grep 常用端口)" ];do
-		eval iptables -w 5 -t nat $(iptables -w 5 -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
-	iptables -w 5 -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
-	iptables -w 5 -t nat -F Clash_DNS 2> /dev/null
-	iptables -w 5 -t nat -X Clash_DNS 2> /dev/null
-	iptables -w 5 -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
-	iptables -w 5 -t nat -F Clash_Local_Proxy 2> /dev/null
-	iptables -w 5 -t nat -X Clash_Local_Proxy 2> /dev/null
-	iptables -w 5 -D FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT 2> /dev/null
-	while [ "$(iptables -w 5 -t nat -S PREROUTING | grep 常用端口流量)" ];do
-		eval iptables -w 5 -t nat $(iptables -w 5 -t nat -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	iptables -w 5 -t nat -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
-	iptables -w 5 -t nat -F Clash 2> /dev/null
-	iptables -w 5 -t nat -X Clash 2> /dev/null
-	while [ "$(iptables -w 5 -t mangle -S PREROUTING | grep 常用端口流量)" ];do
-		eval iptables -w 5 -t mangle $(iptables -w 5 -t mangle -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null
-	done
-	iptables -w 5 -t mangle -D PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash 2> /dev/null
-	iptables -w 5 -t mangle -F Clash 2> /dev/null
-	iptables -w 5 -t mangle -X Clash 2> /dev/null
+	while [ "$(iptables -w -t nat -S OUTPUT | grep 常用端口)" ];do eval iptables -w -t nat $(iptables -w -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	iptables -w -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	iptables -w -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	iptables -w -t nat -F Clash_DNS 2> /dev/null
+	iptables -w -t nat -X Clash_DNS 2> /dev/null
+	iptables -w -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	iptables -w -t nat -F Clash_Local_Proxy 2> /dev/null
+	iptables -w -t nat -X Clash_Local_Proxy 2> /dev/null
+	iptables -w -D FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT 2> /dev/null
+	while [ "$(iptables -w -t nat -S PREROUTING | grep 常用端口流量)" ];do eval iptables -w -t nat $(iptables -w -t nat -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	iptables -w -t nat -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
+	iptables -w -t nat -F Clash 2> /dev/null
+	iptables -w -t nat -X Clash 2> /dev/null
+	while [ "$(iptables -w -t mangle -S PREROUTING | grep 常用端口流量)" ];do eval iptables -w -t mangle $(iptables -w -t mangle -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	while [ "$(iptables -w -t mangle -S PREROUTING | grep 本机流量进入Clash)" ];do eval iptables -w -t mangle $(iptables -w -t mangle -S PREROUTING | grep 本机流量进入Clash | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	iptables -w -t mangle -F Clash_Local_Proxy_PREROUTING 2> /dev/null
+	iptables -w -t mangle -X Clash_Local_Proxy_PREROUTING 2> /dev/null
+	while [ "$(iptables -w -t mangle -S OUTPUT | grep 本机流量进入Clash)" ];do eval iptables -w -t mangle $(iptables -w -t mangle -S OUTPUT | grep 本机流量进入Clash | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	iptables -w -t mangle -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	iptables -w -t mangle -D OUTPUT -p udp -m comment --comment "udp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	iptables -w -t mangle -F Clash_Local_Proxy 2> /dev/null
+	iptables -w -t mangle -X Clash_Local_Proxy 2> /dev/null
+	iptables -w -t mangle -D PREROUTING -m comment --comment "流量进入Clash规则链" -j Clash 2> /dev/null
+	iptables -w -t mangle -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
+	iptables -w -t mangle -D PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash 2> /dev/null
+	iptables -w -t mangle -F Clash 2> /dev/null
+	iptables -w -t mangle -X Clash 2> /dev/null
 	ipset -q destroy cn_ip
+	ip route del default dev utun table 100 2> /dev/null
 	ip rule del fwmark $redir_port table 100 2> /dev/null
+	ip rule del fwmark $tproxy_port table 100 2> /dev/null
+	ip route del local default dev lo table 100 2> /dev/null
+	while [ "$(ip6tables -w -t nat -S OUTPUT | grep 常用端口)" ];do eval ip6tables -w -t nat $(ip6tables -w -t nat -S OUTPUT | grep 常用端口 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	ip6tables -w -t nat -D PREROUTING -p udp --dport 53 -m comment --comment "DNS流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	ip6tables -w -t nat -D OUTPUT -p udp --dport 53 -m comment --comment "DNS本机流量进入Clash_DNS规则链" -j Clash_DNS 2> /dev/null
+	ip6tables -w -t nat -F Clash_DNS 2> /dev/null
+	ip6tables -w -t nat -X Clash_DNS 2> /dev/null
+	ip6tables -w -t nat -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t nat -F Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t nat -X Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -D FORWARD -o utun -p udp -m comment --comment "utun出口流量允许放行" -j ACCEPT 2> /dev/null
+	while [ "$(ip6tables -w -t nat -S PREROUTING | grep 常用端口流量)" ];do eval ip6tables -w -t nat $(ip6tables -w -t nat -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	ip6tables -w -t nat -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
+	ip6tables -w -t nat -F Clash 2> /dev/null
+	ip6tables -w -t nat -X Clash 2> /dev/null
+	while [ "$(ip6tables -w -t mangle -S PREROUTING | grep 常用端口流量)" ];do eval ip6tables -w -t mangle $(ip6tables -w -t mangle -S PREROUTING | grep 常用端口流量 | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	while [ "$(ip6tables -w -t mangle -S PREROUTING | grep 本机流量进入Clash)" ];do eval ip6tables -w -t mangle $(ip6tables -w -t mangle -S PREROUTING | grep 本机流量进入Clash | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	ip6tables -w -t mangle -F Clash_Local_Proxy_PREROUTING 2> /dev/null
+	ip6tables -w -t mangle -X Clash_Local_Proxy_PREROUTING 2> /dev/null
+	while [ "$(ip6tables -w -t mangle -S OUTPUT | grep 本机流量进入Clash)" ];do eval ip6tables -w -t mangle $(ip6tables -w -t mangle -S OUTPUT | grep 本机流量进入Clash | sed 's/-A/-D/' | head -1) 2> /dev/null;done
+	ip6tables -w -t mangle -D OUTPUT -p tcp -m comment --comment "tcp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t mangle -D OUTPUT -p udp -m comment --comment "udp本机流量进入Clash_Local_Proxy规则链" -j Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t mangle -F Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t mangle -X Clash_Local_Proxy 2> /dev/null
+	ip6tables -w -t mangle -D PREROUTING -m comment --comment "流量进入Clash规则链" -j Clash 2> /dev/null
+	ip6tables -w -t mangle -D PREROUTING -p tcp -m comment --comment "tcp流量进入Clash规则链" -j Clash 2> /dev/null
+	ip6tables -w -t mangle -D PREROUTING -p udp -m comment --comment "udp流量进入Clash规则链" -j Clash 2> /dev/null
+	ip6tables -w -t mangle -F Clash 2> /dev/null
+	ip6tables -w -t mangle -X Clash 2> /dev/null
+	ipset -q destroy cn_ipv6
+	ip -6 route del default dev utun table 101 2> /dev/null
+	ip -6 rule del fwmark $redir_port table 101 2> /dev/null
+	ip -6 rule del fwmark $tproxy_port table 101 2> /dev/null
+	ip -6 route del local default dev lo table 101 2> /dev/null
+	rmmod xt_TPROXY 2> /dev/null
 	return 0
 }
 showfirewall(){
-	echo -e "\n-------------------------------------------MANGLE-------------------------------------------" && {
-		[ "$(iptables -w 5 -t mangle -S PREROUTING | grep Clash)" ] && iptables -w 5 -t mangle -nvL PREROUTING && echo && iptables -w 5 -t mangle -nvL Clash
+	echo -e "------------------------------------------MANGLE------------------------------------------" && {
+		[ "$(iptables -w -t mangle -S PREROUTING | grep Clash)" ] && iptables -w -t mangle -nvL PREROUTING && echo && iptables -w -t mangle -nvL Clash
+		[ "$(iptables -w -t mangle -S PREROUTING | grep Clash_Local_Proxy_PREROUTING)" ] && echo && iptables -w -t mangle -nvL Clash_Local_Proxy_PREROUTING
+		[ "$(iptables -w -t mangle -S OUTPUT | grep Clash_Local_Proxy)" ] && echo && iptables -w -t mangle -nvL OUTPUT && echo && iptables -w -t mangle -nvL Clash_Local_Proxy
 	}
-	echo -e "\n--------------------------------------------NAT---------------------------------------------" && {
-		[ "$(iptables -w 5 -t nat -S PREROUTING | grep Clash)" ] && iptables -w 5 -t nat -nvL PREROUTING && echo && iptables -w 5 -t nat -nvL Clash
-		[ "$(iptables -w 5 -t nat -S OUTPUT | grep Clash)" ] && echo && iptables -w 5 -t nat -nvL OUTPUT && echo && {
-			iptables -w 5 -t nat -nvL Clash_DNS 2> /dev/null && echo
-			iptables -w 5 -t nat -nvL Clash_Local_Proxy 2> /dev/null
+	echo -e "\n-------------------------------------------NAT--------------------------------------------" && {
+		[ "$(iptables -w -t nat -S PREROUTING | grep Clash)" ] && iptables -w -t nat -nvL PREROUTING
+		[ "$(iptables -w -t nat -S Clash 2> /dev/null)" ] && echo && iptables -w -t nat -nvL Clash
+		[ "$(iptables -w -t nat -S OUTPUT | grep Clash)" ] && echo && iptables -w -t nat -nvL OUTPUT && {
+			[ "$(iptables -w -t nat -S OUTPUT | grep Clash_DNS)" ] && echo && iptables -w -t nat -nvL Clash_DNS
+			[ "$(iptables -w -t nat -S OUTPUT | grep Clash_Local_Proxy)" ] && echo && iptables -w -t nat -nvL Clash_Local_Proxy
 		}
 	}
-	echo -e "\n-------------------------------------------FILTER-------------------------------------------" && {
-		[ "$(iptables -w 5 -S FORWARD | grep utun)" ] && iptables -w 5 -nvL FORWARD
+	echo -e "\n------------------------------------------FILTER------------------------------------------" && {
+		[ "$(iptables -w -S FORWARD | grep utun)" ] && iptables -w -nvL FORWARD
 	}
-	[ "$routev6" ] && echo -e "\n----------------------------------------IPv6  MANGLE----------------------------------------" && {
-		[ "$(ip6tables -w 5 -t mangle -S PREROUTING | grep Clash)" ] && ip6tables -w 5 -t mangle -nvL PREROUTING && echo && ip6tables -w 5 -t mangle -nvL Clash
-	}
-	[ "$routev6" ] && echo -e "\n-----------------------------------------IPv6  NAT------------------------------------------" && {
-		[ "$(ip6tables -w 5 -t nat -S PREROUTING | grep Clash)" ] && ip6tables -w 5 -t nat -nvL PREROUTING && echo && ip6tables -w 5 -t nat -nvL Clash 2> /dev/null
-		[ "$(ip6tables -w 5 -t nat -S OUTPUT | grep Clash)" ] && echo && ip6tables -w 5 -t nat -nvL OUTPUT && echo && {
-			ip6tables -w 5 -t nat -nvL Clash_DNS 2> /dev/null && echo
-			ip6tables -w 5 -t nat -nvL Clash_Local_Proxy 2> /dev/null
+	[ "$routev6" ] && {
+		echo -e "\n---------------------------------------IPv6  MANGLE---------------------------------------" && {
+			[ "$(ip6tables -w -t mangle -S PREROUTING | grep Clash)" ] && ip6tables -w -t mangle -nvL PREROUTING && echo && ip6tables -w -t mangle -nvL Clash
+			[ "$(ip6tables -w -t mangle -S PREROUTING | grep Clash_Local_Proxy_PREROUTING)" ] && echo && ip6tables -w -t mangle -nvL Clash_Local_Proxy_PREROUTING
+			[ "$(ip6tables -w -t mangle -S OUTPUT | grep Clash_Local_Proxy)" ] && echo && ip6tables -w -t mangle -nvL OUTPUT && echo && ip6tables -w -t mangle -nvL Clash_Local_Proxy
 		}
-	}
-	[ "$routev6" ] && echo -e "\n----------------------------------------IPv6  FILTER----------------------------------------" && {
-		[ "$(ip6tables -w 5 -S FORWARD | grep utun)" ] && ip6tables -w 5 -nvL FORWARD
+		echo -e "\n----------------------------------------IPv6  NAT-----------------------------------------" && {
+			[ "$(ip6tables -w -t nat -S PREROUTING | grep Clash)" ] && ip6tables -w -t nat -nvL PREROUTING
+			[ "$(ip6tables -w -t nat -S Clash 2> /dev/null)" ] && echo && ip6tables -w -t nat -nvL Clash
+			[ "$(ip6tables -w -t nat -S OUTPUT | grep Clash)" ] && echo && ip6tables -w -t nat -nvL OUTPUT && {
+				[ "$(ip6tables -w -t nat -S OUTPUT | grep Clash_DNS)" ] && echo && ip6tables -w -t nat -nvL Clash_DNS
+				[ "$(ip6tables -w -t nat -S OUTPUT | grep Clash_Local_Proxy)" ] && echo && ip6tables -w -t nat -nvL Clash_Local_Proxy
+			}
+		}
+		echo -e "\n---------------------------------------IPv6  FILTER---------------------------------------" && {
+			[ "$(ip6tables -w -S FORWARD | grep utun)" ] && ip6tables -w -nvL FORWARD
+		}
 	}
 	return 0
 }
@@ -582,13 +769,12 @@ showfirewall(){
 [ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && \
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
-	cniproutenum="" && dnshijacknum="" && confignum=$2 && suburlcount=1 && suburlnum="" && configurlcount=1 && configurlnum="" && configserver_temp="" && deletenum=""
-	saveconfig && num="$1" && [ ! "$num" ] && echo && {
+	saveconfig && num="$1" && confignum=$2 && [ ! "$num" ] && echo && {
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
 		[ -s $CLASHDIR/starttime -a "$(pidof mihomo)" ] && states="$PINK$(awk BEGIN'{printf "%0.2f MB",'$(cat /proc/$(pidof mihomo)/status 2> /dev/null | grep -w VmRSS | awk '{print $2}')'/1024}')" || states="$RED已停止"
-		echo -e "1.  $GREEN重新启动 ${BLUE}Clash-mihomo$RESET\t\t${YELLOW}运存占用：$states$RESET"
+		echo -e "1.  $GREEN重新启动  ${BLUE}Clash-mihomo$RESET\t\t$YELLOW运存占用：$states$RESET"
 		if [ -s $CLASHDIR/starttime -a "$(pidof mihomo)" ];then
 			TotalSeconeds=$(($(date +%s)-$(cat $CLASHDIR/starttime)))
 			Days=$(awk BEGIN'{printf "%d",'$TotalSeconeds'/60/60/24}') && [ "$Days" -gt 0 ] && Days=$Days天 || Days=""
@@ -597,31 +783,29 @@ main(){
 			Seconeds=$(awk BEGIN'{printf "%d\n",'$TotalSeconeds'%60}')秒
 			states="$YELLOW运行时长：$PINK$Days$Hours$Minutes$Seconeds"
 		else states="";fi
-		echo -e "2.  $RED停止运行 ${BLUE}Clash-mihomo$RESET\t\t$states$RESET"
-		[ "$common_ports" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "3.  $GREEN开启$RESET/$RED关闭 $SKYBLUE仅代理常用端口\t\t$YELLOW当前状态：$states$RESET"
-		[ "$cnip_route" = "开" -o "$cnipv6_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "4.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIP绕过内核\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "2.  $RED停止运行  ${BLUE}Clash-mihomo$RESET\t\t$states$RESET"
+		echo -e "3.  $YELLOW修     改 $SKYBLUE内核相关配置$RESET"
+		[ "$mac_filter" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "4.  $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
 		[ "$Clash_Local_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
 		echo -e "5.  $GREEN开启$RESET/$RED关闭 $SKYBLUE本机流量代理\t\t$YELLOW当前状态：$states$RESET"
-		[ "$Docker_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "6.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}Docker流量代理\t\t$YELLOW当前状态：$states$RESET"
 		[ "$dns_hijack" = "开" -o "$dnsipv6_hijack" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "7.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS流量劫持\t\t$YELLOW当前状态：$states$RESET"
-		[ "$mac_filter" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "8.  $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
-		[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
-		echo -e "9.  $YELLOW切换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
-		echo -e "10. $YELLOW查看 $SKYBLUE防火墙相关规则$RESET"
+		echo -e "6.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS流量劫持\t\t$YELLOW当前状态：$states$RESET"
+		[ "$common_ports" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "7.  $GREEN开启$RESET/$RED关闭 $SKYBLUE仅代理常用端口\t\t$YELLOW当前状态：$states$RESET"
+		[ "$cnip_skip" = "开" -o "$cnipv6_skip" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "8.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIP绕过内核\t\t$YELLOW当前状态：$states$RESET"
+		[ "$Docker_Proxy" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+		echo -e "9.  $GREEN开启$RESET/$RED关闭 ${SKYBLUE}Docker流量代理\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "10. $YELLOW查     看 $SKYBLUE防火墙相关规则$RESET"
 		[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
-		echo -e "11. $YELLOW更新 $SKYBLUE订阅转换文件\t\t\t$YELLOW当前规则：$states$RESET"
-		echo -e "12. $YELLOW更新 $SKYBLUE所有相关文件$RESET"
+		echo -e "11. $YELLOW更     新 $SKYBLUE订阅配置文件\t\t$YELLOW当前规则：$states$RESET"
+		echo -e "12. $YELLOW更     新 $SKYBLUE所有相关文件$RESET"
 		[ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ] && states="$GREEN已开启" || states="$RED已关闭"
-		echo -e "13. $YELLOW设置 $SKYBLUE开机自启动\t\t\t$YELLOW当前状态：$states$RESET"
-		echo -e "88. $RED一键卸载 ${BLUE}Clash-mihomo $RED所有文件$RESET"
+		echo -e "13. $GREEN开启$RESET/$RED关闭 $SKYBLUE开机自启动\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "88. $RED一键卸载  ${BLUE}Clash-mihomo $RED所有文件$RESET"
 		echo "---------------------------------------------------------"
-		echo -ne "\n"
-		read -p "请输入对应选项的数字 > " num
+		echo && read -p "请输入对应选项的数字 > " num
 	}
 	case "$num" in
 		1)
@@ -629,26 +813,171 @@ main(){
 		2)
 			stop;;
 		3)
-			[ "$common_ports" = "开" ] && common_ports=关 || common_ports=开
-			[ "$(pidof mihomo)" ] && startfirewall;main;;
+			[ ! "$confignum" ] && {
+				echo "========================================================="
+				echo "请输入你的选项："
+				echo "---------------------------------------------------------"
+				[ "$redirect_mode" = "tproxy" ] && states="TPROXY" || states="mixed$RESET（${BLUE}REDIRECT $RESET+ ${BLUE}utun$RESET）"
+				echo -e "1. $YELLOW切     换 $SKYBLUE流量代理模式\t\t$YELLOW当前模式：$BLUE$states$RESET"
+				echo -e "2. $YELLOW修     改 $SKYBLUE透明代理端口\t\t$YELLOW当前端口：${BLUE}$redir_port$RESET"
+				echo -e "3. $YELLOW修     改 $SKYBLUE混合代理端口\t\t$YELLOW当前端口：${BLUE}$mixed_port$RESET"
+				echo -e "4. $YELLOW修     改 ${SKYBLUE}TPROXY透明代理端口\t\t$YELLOW当前端口：${BLUE}$tproxy_port$RESET"
+				echo -e "5. $YELLOW修     改 ${SKYBLUE}DNS服务监听端口\t\t$YELLOW当前端口：${BLUE}$dns_port$RESET"
+				echo -e "6. $YELLOW修     改 ${SKYBLUE}网页UI面板监听端口\t\t$YELLOW当前端口：${BLUE}$dashboard_port$RESET"
+				echo -e "7. $YELLOW修     改 ${SKYBLUE}访问内核验证用户名\t\t$YELLOW当前名称：${BLUE}$authusername$RESET"
+				echo -e "8. $YELLOW修     改 ${SKYBLUE}访问内核验证密码\t\t$YELLOW当前密码：${BLUE}$authpassword$RESET"
+				[ "$core_ipv6" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+				echo -e "9. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6流量代理\t\t$YELLOW当前状态：${BLUE}$states$RESET"
+				[ "$dns_ipv6" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+				echo -e "10.$GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6 DNS解析\t\t$YELLOW当前状态：${BLUE}$states$RESET"
+				echo -e "11.$YELLOW修     改 $SKYBLUE默认DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_default$RESET" | sed 's/, /,/g'
+				echo -e "12.$YELLOW修     改 $SKYBLUE海外DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_fallback$RESET" | sed 's/, /,/g'
+				echo "---------------------------------------------------------"
+				echo "0. 返回上一页"
+				echo && read -p "请输入对应选项的数字 > " confignum
+			}
+			[ "$(pidof mihomo)" ] && [ "$confignum" -a ! "$(echo $confignum | sed 's/[1-9]//g')" ] && [ $confignum -le 12 ] && {
+				echo "========================================================="
+				echo -e "${BLUE}Clash-mihomo $YELLOW正在运行中！修改前需要先停止运行 ${BLUE}Clash-mihomo $YELLOW！$RESET"
+				echo "---------------------------------------------------------"
+				echo "1. 确认停止运行并修改"
+				echo "---------------------------------------------------------"
+				echo "0. 返回上一页"
+				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] && stop || { [ "$mihomonum" = "0" ] && main $num || exit; }
+			}
+			case "$confignum" in
+				1)
+					[ "$redirect_mode" = "tproxy" ] && redirect_mode=mixed || { modprobe xt_TPROXY 2> /dev/null && redirect_mode=tproxy && rmmod xt_TPROXY || echo -e "\n${BLUE}TPROXY $RED内核模块不存在，无法切换！$RESET"; };main $num;;
+				2)
+					echo && read -p "请输入透明代理端口：" redir_port_temp
+					[ "$redir_port_temp" ] && if [ "$redir_port_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $redir_port_temp | sed 's/[0-9]//g')" ];then
+						echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+					else
+						if [ $redir_port_temp -gt 65535 ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							processtcp=$(netstat -lnWp | grep tcp | grep ":$redir_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processtcp" ] && processtcp="tcp端口已被 $BLUE$processtcp $RED占用！"
+							processudp=$(netstat -lnWp | grep udp | grep ":$redir_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processudp" ] && processudp="udp端口已被 $BLUE$processudp $RED占用！"
+							if [ ! "$processtcp" -a ! "$processudp" ];then
+								redir_port=$redir_port_temp && main $num
+							else
+								echo -e "\n$RED检测到 $PINK$redir_port_temp $RED$processtcp$processudp修改失败！$RESET" && sleep 1 && main $num
+							fi
+						fi
+					fi;;
+				3)
+					echo && read -p "请输入混合代理端口：" mixed_port_temp
+					[ "$mixed_port_temp" ] && if [ "$mixed_port_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $mixed_port_temp | sed 's/[0-9]//g')" ];then
+						echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+					else
+						if [ $mixed_port_temp -gt 65535 ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							processtcp=$(netstat -lnWp | grep tcp | grep ":$mixed_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processtcp" ] && processtcp="tcp端口已被 $BLUE$processtcp $RED占用！"
+							processudp=$(netstat -lnWp | grep udp | grep ":$mixed_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processudp" ] && processudp="udp端口已被 $BLUE$processudp $RED占用！"
+							if [ ! "$processtcp" -a ! "$processudp" ];then
+								mixed_port=$mixed_port_temp && main $num
+							else
+								echo -e "\n$RED检测到 $PINK$mixed_port_temp $RED$processtcp$processudp修改失败！$RESET" && sleep 1 && main $num
+							fi
+						fi
+					fi;;
+				4)
+					echo && read -p "请输入TPROXY透明代理端口：" tproxy_port_temp
+					[ "$tproxy_port_temp" ] && if [ "$tproxy_port_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $tproxy_port_temp | sed 's/[0-9]//g')" ];then
+						echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+					else
+						if [ $tproxy_port_temp -gt 65535 ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							processtcp=$(netstat -lnWp | grep tcp | grep ":$tproxy_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processtcp" ] && processtcp="tcp端口已被 $BLUE$processtcp $RED占用！"
+							processudp=$(netstat -lnWp | grep udp | grep ":$tproxy_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processudp" ] && processudp="udp端口已被 $BLUE$processudp $RED占用！"
+							if [ ! "$processtcp" -a ! "$processudp" ];then
+								tproxy_port=$tproxy_port_temp && main $num
+							else
+								echo -e "\n$RED检测到 $PINK$tproxy_port_temp $RED$processtcp$processudp修改失败！$RESET" && sleep 1 && main $num
+							fi
+						fi
+					fi;;
+				5)
+					echo && read -p "请输入DNS服务监听端口：" dns_port_temp
+					[ "$dns_port_temp" ] && if [ "$dns_port_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $dns_port_temp | sed 's/[0-9]//g')" ];then
+						echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+					else
+						if [ $dns_port_temp -gt 65535 ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							processtcp=$(netstat -lnWp | grep tcp | grep ":$dns_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processtcp" ] && processtcp="tcp端口已被 $BLUE$processtcp $RED占用！"
+							processudp=$(netstat -lnWp | grep udp | grep ":$dns_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processudp" ] && processudp="udp端口已被 $BLUE$processudp $RED占用！"
+							if [ ! "$processtcp" -a ! "$processudp" ];then
+								dns_port=$dns_port_temp && main $num
+							else
+								echo -e "\n$RED检测到 $PINK$dns_port_temp $RED$processtcp$processudp修改失败！$RESET" && sleep 1 && main $num
+							fi
+						fi
+					fi;;
+				6)
+					echo && read -p "请输入网页UI面板监听端口：" dashboard_port_temp
+					[ "$dashboard_port_temp" ] && if [ "$dashboard_port_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $dashboard_port_temp | sed 's/[0-9]//g')" ];then
+						echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+					else
+						if [ $dashboard_port_temp -gt 65535 ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							processtcp=$(netstat -lnWp | grep tcp | grep ":$dashboard_port_temp " | awk '{print $NF}' | sed 's/.*\///' | head -1) && [ "$processtcp" ] && processtcp="tcp端口已被 $BLUE$processtcp $RED占用！"
+							if [ ! "$processtcp" ];then
+								dashboard_port=$dashboard_port_temp && main $num
+							else
+								echo -e "\n$RED检测到 $PINK$dashboard_port_temp $RED$processtcp修改失败！$RESET" && sleep 1 && main $num
+							fi
+						fi
+					fi;;
+				7)
+					echo && read -p "请输入访问内核验证用户名：" authusername_temp
+					authusername=$(echo $authusername_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
+				8)
+					echo && read -p "请输入访问内核验证密码：" authpassword_temp
+					authpassword=$(echo $authpassword_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
+				9)
+					[ "$core_ipv6" = "开" ] && core_ipv6=关 || core_ipv6=开;main $num;;
+				10)
+					[ "$dns_ipv6" = "开" ] && dns_ipv6=关 || dns_ipv6=开;main $num;;
+				11)
+					echo && read -p "请输入默认DNS解析服务器（如有多个请用逗号‘,’隔开）：" dns_default_temp
+					[ "$dns_default_temp" = "0" ] && main $num || { [ "$dns_default_temp" ] && dns_default=$(echo $dns_default_temp | awk '{print $1}' | sed 's/,*$// | sed 's/[^ -~]//g'') && main $num; };;
+				12)
+					echo && read -p "请输入默认DNS解析服务器（如有多个请用逗号‘,’隔开）：" dns_fallback_temp
+					[ "$dns_fallback_temp" = "0" ] && main $num || { [ "$dns_fallback_temp" ] && dns_fallback=$(echo $dns_fallback_temp | awk '{print $1}' | sed 's/[^ -~]//g' | sed 's/,*$//') && main $num; };;
+				0)
+					main;;
+			esac;;
 		4)
 			echo "========================================================="
 			echo "请输入你的选项："
 			echo "---------------------------------------------------------"
-			[ "$cnip_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-			echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIPv4绕过内核\t\t$YELLOW当前状态：$states$RESET"
-			[ "$cnipv6_route" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIPv6绕过内核\t\t$YELLOW当前状态：$states$RESET"
+			[ "$mac_filter" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+			echo -e "1. $GREEN开启$RESET/$RED关闭 $SKYBLUE常用设备过滤\t\t$YELLOW当前状态：$states$RESET"
+			[ "$mac_filter_mode" = "黑名单" ] && states="$PINK黑名单" || states="$GREEN白名单"
+			echo -e "2. $YELLOW切     换 $SKYBLUE常用设备过滤模式\t\t$YELLOW当前状态：$states$RESET"
 			echo "---------------------------------------------------------"
 			echo "0. 返回上一页"
-			echo -ne "\n"
-			read -p "请输入对应选项的数字 > " cniproutenum
-			case "$cniproutenum" in
+			echo && read -p "请输入对应选项的数字 > " confignum
+			case "$confignum" in
 				1)
-					[ "$cnip_route" = "开" ] && cnip_route=关 || cnip_route=开
+					[ "$mac_filter" = "开" ] && mac_filter=关 || mac_filter=开
 					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
 				2)
-					[ "$cnipv6_route" = "开" ] && cnipv6_route=关 || cnipv6_route=开
+					[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
 					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
 				0)
 					main;;
@@ -657,11 +986,6 @@ main(){
 			[ "$Clash_Local_Proxy" = "开" ] && Clash_Local_Proxy=关 || Clash_Local_Proxy=开
 			[ "$(pidof mihomo)" ] && startfirewall;main;;
 		6)
-			if [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ];then
-				[ "$Docker_Proxy" = "开" ] && Docker_Proxy=关 || Docker_Proxy=开
-				[ "$(pidof mihomo)" ] && startfirewall
-			else echo -e "\n$RED没有检测到 ${BLUE}Docker $RED正在运行！$RESET\n" && sleep 1;fi;main;;
-		7)
 			echo "========================================================="
 			echo "请输入你的选项："
 			echo "---------------------------------------------------------"
@@ -671,26 +995,84 @@ main(){
 			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}DNS IPv6流量劫持\t\t$YELLOW当前状态：$states$RESET"
 			echo "---------------------------------------------------------"
 			echo "0. 返回上一页"
-			echo -ne "\n"
-			read -p "请输入对应选项的数字 > " dnshijacknum
-			case "$dnshijacknum" in
+			echo && read -p "请输入对应选项的数字 > " confignum
+			case "$confignum" in
 				1)
 					[ "$dns_hijack" = "开" ] && dns_hijack=关 || dns_hijack=开
 					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
 				2)
-					if [ "$routev6" -a "$dns_ipv6" = "开" -a "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '  ipv6:'| awk '{print $2}')" = "true" ];then
+					if [ "$dns_ipv6" = "开" -a "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '^ .*ipv6:'| awk '{print $2}')" = "true" ];then
 						[ "$dnsipv6_hijack" = "开" ] && dnsipv6_hijack=关 || dnsipv6_hijack=开
 						[ "$(pidof mihomo)" ] && startfirewall
-					else echo -e "\n$RED当前无法修改 ${SKYBLUE}DNS IPv6流量劫持 $RED选项！$RESET\n" && sleep 1;fi;main $num;;
+					else
+						echo -e "\n$RED当前无法修改 ${SKYBLUE}DNS IPv6流量劫持 $RED选项！$RESET\n" && sleep 1
+					fi;main $num;;
+				0)
+					main;;
+			esac;;
+		7)
+			[ ! "$confignum" ] && {
+				echo "========================================================="
+				echo "请输入你的选项："
+				echo "---------------------------------------------------------"
+				[ "$common_ports" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+				echo -e "1. $GREEN开启$RESET/$RED关闭 $SKYBLUE仅常用端口代理\t\t$YELLOW当前状态：$states$RESET"
+				echo -e "2. $YELLOW设     置 $SKYBLUE常用端口\t\t\t$YELLOW当前端口：$BLUE$multiports$RESET"
+				echo "---------------------------------------------------------"
+				echo "0. 返回上一页"
+				echo && read -p "请输入对应选项的数字 > " confignum
+			}
+			case "$confignum" in
+				1)
+					[ "$common_ports" = "开" ] && common_ports=关 || common_ports=开
+					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
+				2)
+					echo &&read -p "请输入常用端口（隔开的端口请用逗号‘,’隔开，连续的端口请用短破折号‘-’连上）：" multiports_temp
+					[ "$multiports_temp" ] && if [ "$multiports_temp" = "0" ];then
+						main $num
+					elif [ "$(echo $multiports_temp | sed 's/[0-9,-]//g')" -o "$(echo $multiports_temp | grep ^-)" ];then
+						echo -e "\n$YELLOW请输入正确格式的端口！$RESET" && sleep 1 && main $num
+					else
+						for multiport in $(echo $multiports_temp | sed 's/[,-]/ /g');do [ $multiport -le 65535 ] && unpassed="" || { unpassed="true";break; };done
+						if [ "$unpassed" ];then
+							echo -e "\n$YELLOW请输入正确的端口！$RESET" && sleep 1 && main $num
+						else
+							multiports=$multiports_temp
+							[ "$common_ports" = "开" ] && [ "$(pidof mihomo)" ] && startfirewall;main $num
+						fi
+					fi;;
 				0)
 					main;;
 			esac;;
 		8)
-			[ "$mac_filter" = "开" ] && mac_filter=关 || mac_filter=开
-			[ "$(pidof mihomo)" ] && startfirewall;main;;
+			echo "========================================================="
+			echo "请输入你的选项："
+			echo "---------------------------------------------------------"
+			[ "$cnip_skip" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+			echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIPv4绕过内核\t\t$YELLOW当前状态：$states$RESET"
+			[ "$cnipv6_skip" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+			echo -e "2. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}CNIPv6绕过内核\t\t$YELLOW当前状态：$states$RESET"
+			echo "---------------------------------------------------------"
+			echo "0. 返回上一页"
+			echo && read -p "请输入对应选项的数字 > " confignum
+			case "$confignum" in
+				1)
+					[ "$cnip_skip" = "开" ] && cnip_skip=关 || cnip_skip=开
+					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
+				2)
+					[ "$cnip_skip" = "开" ] || return;
+					[ "$cnipv6_skip" = "开" ] && cnipv6_skip=关 || cnipv6_skip=开
+					[ "$(pidof mihomo)" ] && startfirewall;main $num;;
+				0)
+					main;;
+			esac;;
 		9)
-			[ "$mac_filter_mode" = "黑名单" ] && mac_filter_mode=白名单 || mac_filter_mode=黑名单
-			[ "$(pidof mihomo)" ] && startfirewall;main;;
+			if [ "$(ip route | grep docker | awk '{print $1}' | head -1)" ];then
+				[ "$Docker_Proxy" = "开" ] && Docker_Proxy=关 || Docker_Proxy=开
+				[ "$(pidof mihomo)" ] && startfirewall
+			else
+				echo -e "\n$RED没有检测到 ${BLUE}Docker $RED正在运行！$RESET\n" && sleep 1
+			fi;main;;
 		10)
 			showfirewall;;
 		11)
@@ -698,73 +1080,114 @@ main(){
 				echo "========================================================="
 				echo "请输入你的选项："
 				echo "---------------------------------------------------------"
-				[ "$udp_support" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-				echo -e "1. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}节点UDP支持功能\t\t$YELLOW当前状态：$states$RESET"
-				[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/ http.*//')" || states="$SKYBLUE$sub_url"
-				echo -e "2. $YELLOW切换 ${SKYBLUE}订阅转换服务器\t\t\t$YELLOW正在使用：$states$RESET"
-				[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
-				echo -e "3. $YELLOW切换 ${SKYBLUE}订阅转换规则\t\t\t$YELLOW正在使用：$states$RESET"
-				echo "9. 立即更新订阅链接"
+				[ "$subconver" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+				echo -e "1. $GREEN开启$RESET/$RED关闭 $SKYBLUE订阅配置转换\t\t$YELLOW当前状态：$states$RESET"
+				[ "$subconver" = "开" ] && {
+					[ "$udp_support" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
+					echo -e "2. $GREEN开启$RESET/$RED关闭 $SKYBLUE节点UDP代理支持\t\t$YELLOW当前状态：$states$RESET"
+					echo -e "3. $YELLOW过     滤 $SKYBLUE节点\t\t\t$YELLOW当前过滤：$BLUE$exclude_name$RESET"
+					echo -e "4. $YELLOW过     滤 $SKYBLUE节点类型\t\t\t$YELLOW当前过滤：$BLUE$exclude_type$RESET"
+					[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/ http.*//')" || states="$SKYBLUE$sub_url"
+					echo -e "5. $YELLOW切     换 $SKYBLUE订阅配置转换服务器\t\t$YELLOW正在使用：$states$RESET"
+					[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
+					echo -e "6. $YELLOW切     换 $SKYBLUE订阅配置转换规则\t\t$YELLOW正在使用：$states$RESET"
+				}
+				echo -e "7. $YELLOW更     换 $SKYBLUE订阅链接地址\t\t$YELLOW正在使用：$SKYBLUE$sublink$RESET"
+				echo "9. 立即更新订阅配置"
 				echo "---------------------------------------------------------"
 				echo "0. 返回上一页"
-				echo -ne "\n"
-				read -p "请输入对应选项的数字 > " confignum
+				echo && read -p "请输入对应选项的数字 > " confignum
 			}
 			case "$confignum" in
 				1)
-					[ "$udp_support" = "开" ] && udp_support=关 || udp_support=开;main $num;;
+					[ "$subconver" = "开" ] && subconver=关 || subconver=开;main $num;;
 				2)
+					[ "$subconver" = "开" ] || return;[ "$udp_support" = "开" ] && udp_support=关 || udp_support=开;main $num;;
+				3)
+					[ "$subconver" = "开" ] || return;
+					echo && read -p "请输入需要过滤的节点关键字（如有多个请用竖线‘|’隔开）：" exclude_name
+					exclude_name=$(echo $exclude_name | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
+				4)
+					[ "$subconver" = "开" ] || return;
+					echo && read -p "请输入需要过滤的节点类型关键字（如有多个请用竖线‘|’隔开）：" exclude_type
+					exclude_type=$(echo $exclude_type | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
+				5)
+					[ "$subconver" = "开" ] || return;
 					echo "========================================================="
 					echo "请输入你的选项："
-					echo "---------------------------------------------------------"
-					while read LINE;do [ "$LINE" ] && echo -e "$suburlcount. $LINE" | sed 's/ http.*//' && let suburlcount++;done < $CLASHDIR/convert_server.ini
+					echo "---------------------------------------------------------" && suburlcount=1
+					while read LINE;do [ "$LINE" ] && echo -e "$(printf "%-53s%s\n" "$suburlcount. $SKYBLUE$(echo $LINE | awk '{print $NF}')$RESET" "$BLUE$(echo $LINE | sed 's/ http.*//')")$RESET" && let suburlcount++;done < $CLASHDIR/convert_server.ini
 					[ "$(grep $sub_url$ $CLASHDIR/convert_server.ini)" ] && states="$BLUE$(grep $sub_url$ $CLASHDIR/convert_server.ini | sed 's/ http.*//')" || states="$SKYBLUE$sub_url"
-					echo -e "$suburlcount. 自定义输入后端服务器地址\t\t$YELLOW正在使用：$states$RESET"
+					echo -e "$RESET$suburlcount. 自定义输入订阅配置转换服务器地址"
 					echo "---------------------------------------------------------"
-					echo "0. 返回上一页"
-					echo -ne "\n"
-					read -p "请输入对应选项的数字 > " suburlnum
+					echo -e "0. 返回上一页\t\t\t\t$YELLOW正在使用：$states$RESET"
+					echo && read -p "请输入对应选项的数字 > " suburlnum
 					case "$suburlnum" in
 						$suburlcount)
-							echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" subserver_temp
-							if [ "$(echo $subserver_temp | grep -E '^http://.*\.[^$]|^https://.*\.[^$]' )" ];then
-								sub_url=$(echo $subserver_temp | awk '{print $1}') && main $num $confignum
+							echo && read -p "请输入订阅配置转换服务器地址：" subserver_temp
+							if [ "$(echo $subserver_temp | awk '{print $1}' | grep -E '^http://.*\.[^$]|^https://.*\.[^$]')" ];then
+								sub_url=$(echo $subserver_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num $confignum
 							elif [ "$subserver_temp" ];then
-								echo -e "\n$YELLOW请输入正确格式以http开头的服务器地址！$RESET\n" && sleep 1 && main $num $confignum
+								echo -e "\n$YELLOW请输入正确格式以http开头的订阅配置转换服务器地址！$RESET\n" && sleep 1 && main $num $confignum
 							fi;;
 						0)
 							main $num;;
 					esac
-					[ "$suburlnum" -a ! "$(echo $suburlnum | sed 's/[0-9]//g')" ] && [ "$suburlnum" -lt "$suburlcount" ] && sub_url="$(sed -n "${suburlnum}p" $CLASHDIR/convert_server.ini | grep -o http.*)" && main $num $confignum;;
-				3)
+					[ "$suburlnum" -a ! "$(echo $suburlnum | sed 's/[0-9]//g')" ] && [ ! "$suburlnum" = 0 -a "$suburlnum" -lt "$suburlcount" ] && sub_url="$(sed -n "${suburlnum}p" $CLASHDIR/convert_server.ini | grep -o http.*)" && main $num $confignum;;
+				6)
+					[ "$subconver" = "开" ] || return;
 					echo "========================================================="
 					echo "请输入你的选项："
-					echo "---------------------------------------------------------"
-					while read LINE;do [ "$LINE" ] && echo -e "$configurlcount. $LINE" | sed 's/ http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
+					echo "---------------------------------------------------------" && configurlcount=1
+					while read LINE;do [ "$LINE" ] && echo -e "$RESET$configurlcount. $BLUE$LINE" | sed 's/ http.*//' && let configurlcount++;done < $CLASHDIR/config_url.ini
 					[ "$(grep $config_url$ $CLASHDIR/config_url.ini)" ] && states="$BLUE$(grep $config_url$ $CLASHDIR/config_url.ini | sed 's/ http.*//')" || states="$SKYBLUE$config_url"
-					echo -e "$configurlcount. 自定义输入配置规则地址\t\t$YELLOW正在使用：$states$RESET"
+					echo -e "$RESET$configurlcount. 自定义输入订阅配置转换规则地址"
 					echo "---------------------------------------------------------"
-					echo "0. 返回上一页"
-					echo -ne "\n"
-					read -p "请输入对应选项的数字 > " configurlnum
+					echo -e "0. 返回上一页\t\t\t\t$YELLOW正在使用：$states$RESET"
+					echo && read -p "请输入对应选项的数字 > " configurlnum
 					case "$configurlnum" in
 						$configurlcount)
-							echo -ne "\n" && read -p "请输入或粘贴配置文件地址：" configserver_temp
-							if [ "$(echo $configserver_temp | grep -E '^http://.*\.[^$]|^https://.*\.[^$]' )" ];then
-								config_url=$(echo $configserver_temp | awk '{print $1}') && main $num $confignum
+							echo && read -p "请输入订阅配置转换规则地址：" configserver_temp
+							if [ "$(echo $configserver_temp | awk '{print $1}' | grep -E '^http://.*\.[^$]|^https://.*\.[^$]')" ];then
+								config_url=$(echo $configserver_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num $confignum
 							elif [ "$configserver_temp" ];then
-								echo -e "\n$YELLOW请输入正确格式以http开头的服务器地址！$RESET\n" && sleep 1 && main $num $confignum
+								echo -e "\n$YELLOW请输入正确格式以http开头的订阅配置转换规则地址！$RESET\n" && sleep 1 && main $num $confignum
 							fi;;
 						0)
 							main $num;;
 					esac
-					[ "$configurlnum" -a ! "$(echo $configurlnum | sed 's/[0-9]//g')" ] && [ "$configurlnum" -lt "$configurlcount" ] && config_url="$(sed -n "${configurlnum}p" $CLASHDIR/config_url.ini | grep -o http.*)" && main $num $confignum;;
+					[ "$configurlnum" -a ! "$(echo $configurlnum | sed 's/[0-9]//g')" ] && [ ! "$configurlnum" = 0 -a "$configurlnum" -lt "$configurlcount" ] && config_url="$(sed -n "${configurlnum}p" $CLASHDIR/config_url.ini | grep -o http.*)" && main $num $confignum;;
+				7)
+					echo && read -p "请输入订阅链接地址（如有多个请用竖线‘|’隔开）：" sublink_temp
+					if [ "$(echo $sublink_temp | awk '{print $1}' | grep -E '^http://.*\.[^$]|^https://.*\.[^$]')" ];then
+						sublink=$(echo $sublink_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num
+					else
+						echo -e "\n$YELLOW请输入正确格式以http开头的订阅链接地址！$RESET\n" && sleep 1 && main $num
+					fi;;
 				9)
+					[ "$(pidof mihomo)" ] && {
+						echo "========================================================="
+						echo -e "${BLUE}Clash-mihomo $YELLOW正在运行中！更新前需要先停止运行 ${BLUE}Clash-mihomo $YELLOW！$RESET"
+						echo "---------------------------------------------------------"
+						echo "1. 确认停止运行并更新"
+						echo "---------------------------------------------------------"
+						echo "0. 返回上一页"
+						echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] && stop || { [ "$mihomonum" = "0" ] && main $num || exit; }
+					}
 					mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
 				0)
 					main;;
 			esac;;
 		12)
+			[ "$(pidof mihomo)" ] && {
+				echo "========================================================="
+				echo -e "${BLUE}Clash-mihomo $YELLOW正在运行中！更新前需要先停止运行 ${BLUE}Clash-mihomo $YELLOW！$RESET"
+				echo "---------------------------------------------------------"
+				echo "1. 确认停止运行并更新"
+				echo "---------------------------------------------------------"
+				echo "0. 返回上一页"
+				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] && stop || { [ "$mihomonum" = "0" ] && main $num || exit; }
+			}
 			update;;
 		13)
 			if [ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ];then
@@ -779,12 +1202,10 @@ main(){
 			echo "1. 确认卸载"
 			echo "---------------------------------------------------------"
 			echo "0. 返回上一页"
-			echo -ne "\n"
-			read -p "请输入对应选项的数字 > " deletenum
+			echo && read -p "请输入对应选项的数字 > " deletenum
 			case "$deletenum" in
 				1)
-					stop;stop del;stop del
-					sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
+					stop && sed -i '/clash=/d' /etc/profile && sed -i '/./,/^$/!d' /etc/profile && sed -i '/Clash/d' /etc/passwd && rm -rf $CLASHDIR /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && echo -e "\n${BLUE}Clash-mihomo $RED已一键卸载！请重进SSH清除clash命令变量环境！再会！$RESET";;
 				0)
 					main;;
 			esac;;
@@ -797,6 +1218,7 @@ case "$1" in
 	11|config_update)mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
 	12|update)update;;
 	crontab)update crontab;;
+	stopfirewall)stopfirewall;;
 	startfirewall)startfirewall;;
 	*)main;;
 esac
