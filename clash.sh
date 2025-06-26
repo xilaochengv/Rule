@@ -439,7 +439,7 @@ startfirewall(){
 		}
 	fi
 	if [ "$redirect_mode" = "tproxy" ];then
-		modprobe xt_TPROXY		
+		modprobe xt_TPROXY
 		ip rule add fwmark $tproxy_port table 100
 		ip route add local default dev lo table 100
 		[ "$core_ipv6" = "开" ] && {
@@ -770,6 +770,7 @@ showfirewall(){
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
 	saveconfig && num="$1" && confignum=$2 && [ ! "$num" ] && echo && {
+		[ ! "$showed" ] && echo -e "$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，本脚本制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
