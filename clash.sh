@@ -19,6 +19,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$geoip_url" ] && geoip_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geoip.dat
 [ ! "$geosite_url" ] && geosite_url=https://github.com/xilaochengv/Rule/releases/download/Latest/geosite.dat
 [ ! "$redirect_mode" ] && redirect_mode=mixed
+[ ! "$dns_mode" ] && dns_mode=redir-host
 [ ! "$redir_port" ] && redir_port=25274
 [ ! "$mixed_port" ] && mixed_port=25275
 [ ! "$tproxy_port" ] && tproxy_port=25276
@@ -29,7 +30,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '^ .*ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
 [ ! "$dns_default" ] && dns_default='223.6.6.6' || dns_default=$(echo $dns_default | sed 's/,/, /g')
-[ ! "$dns_fallback" ] && dns_fallback='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query' || dns_fallback=$(echo $dns_fallback | sed 's/,/, /g')
+[ ! "$dns_oversea" ] && dns_oversea='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query' || dns_oversea=$(echo $dns_oversea | sed 's/,/, /g')
 [ ! "$mac_filter" ] && mac_filter=关
 [ ! "$mac_filter_mode" ] && mac_filter_mode=黑名单
 [ ! "$cnip_skip" ] && cnip_skip=关
@@ -49,6 +50,18 @@ start(){
 	[ "$authusername" -a "$authpassword" ] && authentication="authentication: [\"$authusername:$authpassword\"]"
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
 	[ "$dns_ipv6" = "开" ] && ipv6_dns=true || ipv6_dns=false
+	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" ] && {
+		nameserverpolicy="'geosite: cn,apple': [$dns_default]"
+		fakeipfilter_geosite="    - geosite:cn,apple\n"
+	}
+	case "$dns_mode" in
+		fake-ip)
+			fakeipfilter="    - '*.lan'\n    - '*.localdomain'\n    - '*.example'\n    - '*.invalid'\n    - '*.localhost'\n    - '*.test'\n    - '*.local'\n    - '*.home.arpa'\n    - '*.direct'";;
+		mixed)
+			fakeipfilter="$fakeipfilter_geosite$(grep -v '^#' $CLASHDIR/fake_ip_filter.list | sed "s/.*/    - '&'/")";;
+		*)
+			fakeipfilter="    - '+.*'";;
+	esac
 	[ "$redirect_mode" = "mixed" ] && tun="{ enable: true, stack: mixed, device: utun, auto-route: false, udp-timeout: 60 }" || {
 		modprobe xt_TPROXY 2> /dev/null && [ "$?" = 0 ] && tun="{ enable: false }" || {
 			redirect_mode=mixed
@@ -79,12 +92,16 @@ dns:
   enable: true
   listen: :$dns_port
   ipv6: $ipv6_dns
-  enhanced-mode: redir-host
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+$(echo -e "$fakeipfilter")
+  fake-ip-filter-mode: blacklist
   default-nameserver:
     - 223.6.6.6
   nameserver-policy:
-    'geosite: cn,apple': [$dns_default]
-  nameserver: [$dns_fallback]
+    $nameserverpolicy
+  nameserver: [$dns_oversea]
   proxy-server-nameserver: [$dns_default]
 sniffer:
   enable: true
@@ -98,7 +115,6 @@ sniffer:
     - Mijia Cloud
     - dlg.io.mi.com
 tun: $tun
-routing_mark: 65536
 $(sed -n '/^proxies/,/^rules/p' $CLASHDIR/config_original.yaml)
 EOF
 	sed -n '/^rules/,/*/p' $CLASHDIR/config_original.yaml | tail +2 > $CLASHDIR/rules.yaml && sed -i "s/\'//g;s/GEOIP.*/&,no-resolve/" $CLASHDIR/rules.yaml
@@ -148,6 +164,7 @@ saveconfig(){
 	echo "geosite_url='$geosite_url' #GEO-SITE数据库文件下载地址" >> $CLASHDIR/config.ini
 	echo -e "\n#以下配置修改后，需要运行脚本并选择1重启Clash-mihomo后才能生效" >> $CLASHDIR/config.ini
 	echo "redirect_mode=$redirect_mode #流量代理模式（可选mixed或tproxy）" >> $CLASHDIR/config.ini
+	echo "dns_mode=$dns_mode #DNS解析模式（可选redir-host或mixed或fake-ip）" >> $CLASHDIR/config.ini
 	echo "redir_port=$redir_port #透明代理端口" >> $CLASHDIR/config.ini
 	echo "mixed_port=$mixed_port #http(s)和socks混合代理端口" >> $CLASHDIR/config.ini
 	echo "tproxy_port=$tproxy_port #TPROXY透明代理端口" >> $CLASHDIR/config.ini
@@ -158,7 +175,7 @@ saveconfig(){
 	echo "dns_ipv6=$dns_ipv6 #是否开启IPv6 DNS解析功能" >> $CLASHDIR/config.ini
 	echo "dns_port=$dns_port #DNS服务监听端口" >> $CLASHDIR/config.ini
 	echo "dns_default='$dns_default' #默认DNS解析服务器，如有多个请用逗号‘,’隔开" | sed 's/, /,/g' >> $CLASHDIR/config.ini
-	echo "dns_fallback='$dns_fallback' #海外DNS解析服务器，如有多个请用逗号‘,’隔开" | sed 's/, /,/g' >> $CLASHDIR/config.ini
+	echo "dns_oversea='$dns_oversea' #海外DNS解析服务器，如有多个请用逗号‘,’隔开" | sed 's/, /,/g' >> $CLASHDIR/config.ini
 	echo -e "\n#以下配置修改后，需要运行脚本并选择4-9随意一项后才可生效" >> $CLASHDIR/config.ini
 	echo "dns_hijack=$dns_hijack #是否开启DNS IPv4解析服务流量劫持功能（开启后所有IPv4通过53端口的流量将直接转发到mihomo内核上进行DNS解析）" >> $CLASHDIR/config.ini
 	echo "dnsipv6_hijack=$dnsipv6_hijack #是否开启DNS IPv6解析服务流量劫持功能（开启后所有IPv6通过53端口的流量将直接转发到mihomo内核上进行DNS解析）" >> $CLASHDIR/config.ini
@@ -228,7 +245,7 @@ download(){
 }
 update(){
 	while [ "$(cat /proc/xiaoqiang/boot_status)" != 3 -o ! "$(curl -kLm 1 -w %{http_code} -so /dev/null 163.com)" = 200 ];do sleep 1;done
-	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
+	[ ! "$1" -o "$1" = "crontab" ] && stop && rm -rf $CLASHDIR/ui $CLASHDIR/cn_ip.txt $CLASHDIR/cn_ipv6.txt $CLASHDIR/config.yaml $CLASHDIR/fake_ip_filter.list $CLASHDIR/GeoIP.dat $CLASHDIR/GeoSite.dat && mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null
 	[ ! "$1" ] && rm -f $CLASHDIR/mihomo
 	[ ! -d $CLASHDIR/ui ] && {
 		download "/tmp/dashboard" "Meta基础面板" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_db.tar.gz"
@@ -288,6 +305,10 @@ update(){
 			}
 		fi
 	}
+	[ ! -f $CLASHDIR/fake_ip_filter.list -a "$dns_mode" = "mixed" ] && {
+		download "$CLASHDIR/fake_ip_filter.list" "fake-ip域名过滤列表文件" "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/public/fake_ip_filter.list"
+		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+	}
 	[ ! -f $CLASHDIR/cn_ip.txt -a "$cnip_skip" = "开" ] && {
 		download "$CLASHDIR/cn_ip.txt" "CN-IP数据库文件" "https://github.com/xilaochengv/Rule/releases/download/Latest/cn_ip.txt"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
@@ -300,7 +321,7 @@ update(){
 		download "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
-	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" ] && [ ! -f $CLASHDIR/GeoSite.dat ] && {
+	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" -o "$dns_mode" = "mixed" ] && [ ! -f $CLASHDIR/GeoSite.dat ] && {
 		download "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
@@ -820,24 +841,25 @@ main(){
 				echo "---------------------------------------------------------"
 				[ "$redirect_mode" = "tproxy" ] && states="TPROXY" || states="mixed$RESET（${BLUE}REDIRECT $RESET+ ${BLUE}utun$RESET）"
 				echo -e "1. $YELLOW切     换 $SKYBLUE流量代理模式\t\t$YELLOW当前模式：$BLUE$states$RESET"
-				echo -e "2. $YELLOW修     改 $SKYBLUE透明代理端口\t\t$YELLOW当前端口：${BLUE}$redir_port$RESET"
-				echo -e "3. $YELLOW修     改 $SKYBLUE混合代理端口\t\t$YELLOW当前端口：${BLUE}$mixed_port$RESET"
-				echo -e "4. $YELLOW修     改 ${SKYBLUE}TPROXY透明代理端口\t\t$YELLOW当前端口：${BLUE}$tproxy_port$RESET"
-				echo -e "5. $YELLOW修     改 ${SKYBLUE}DNS服务监听端口\t\t$YELLOW当前端口：${BLUE}$dns_port$RESET"
-				echo -e "6. $YELLOW修     改 ${SKYBLUE}网页UI面板监听端口\t\t$YELLOW当前端口：${BLUE}$dashboard_port$RESET"
-				echo -e "7. $YELLOW修     改 ${SKYBLUE}访问内核验证用户名\t\t$YELLOW当前名称：${BLUE}$authusername$RESET"
-				echo -e "8. $YELLOW修     改 ${SKYBLUE}访问内核验证密码\t\t$YELLOW当前密码：${BLUE}$authpassword$RESET"
+				echo -e "2. $YELLOW修     改 ${SKYBLUE}DNS解析模式\t\t$YELLOW当前模式：${BLUE}$dns_mode$RESET"
+				echo -e "3. $YELLOW修     改 $SKYBLUE透明代理端口\t\t$YELLOW当前端口：${BLUE}$redir_port$RESET"
+				echo -e "4. $YELLOW修     改 $SKYBLUE混合代理端口\t\t$YELLOW当前端口：${BLUE}$mixed_port$RESET"
+				echo -e "5. $YELLOW修     改 ${SKYBLUE}TPROXY透明代理端口\t\t$YELLOW当前端口：${BLUE}$tproxy_port$RESET"
+				echo -e "6. $YELLOW修     改 ${SKYBLUE}DNS服务监听端口\t\t$YELLOW当前端口：${BLUE}$dns_port$RESET"
+				echo -e "7. $YELLOW修     改 ${SKYBLUE}网页UI面板监听端口\t\t$YELLOW当前端口：${BLUE}$dashboard_port$RESET"
+				echo -e "8. $YELLOW修     改 ${SKYBLUE}访问内核验证用户名\t\t$YELLOW当前名称：${BLUE}$authusername$RESET"
+				echo -e "9. $YELLOW修     改 ${SKYBLUE}访问内核验证密码\t\t$YELLOW当前密码：${BLUE}$authpassword$RESET"
 				[ "$core_ipv6" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-				echo -e "9. $GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6流量代理\t\t$YELLOW当前状态：${BLUE}$states$RESET"
+				echo -e "10.$GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6流量代理\t\t$YELLOW当前状态：${BLUE}$states$RESET"
 				[ "$dns_ipv6" = "开" ] && states="$GREEN已开启" || states="$RED已关闭"
-				echo -e "10.$GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6 DNS解析\t\t$YELLOW当前状态：${BLUE}$states$RESET"
-				echo -e "11.$YELLOW修     改 $SKYBLUE默认DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_default$RESET" | sed 's/, /,/g'
-				echo -e "12.$YELLOW修     改 $SKYBLUE海外DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_fallback$RESET" | sed 's/, /,/g'
+				echo -e "11.$GREEN开启$RESET/$RED关闭 ${SKYBLUE}IPv6 DNS解析\t\t$YELLOW当前状态：${BLUE}$states$RESET"
+				echo -e "12.$YELLOW修     改 $SKYBLUE默认DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_default$RESET" | sed 's/, /,/g'
+				echo -e "13.$YELLOW修     改 $SKYBLUE海外DNS解析服务器\t\t$YELLOW正在使用：${BLUE}$dns_oversea$RESET" | sed 's/, /,/g'
 				echo "---------------------------------------------------------"
 				echo "0. 返回上一页"
 				echo && read -p "请输入对应选项的数字 > " confignum
 			}
-			[ "$(pidof mihomo)" ] && [ "$confignum" -a ! "$(echo $confignum | sed 's/[1-9]//g')" ] && [ $confignum -le 12 ] && {
+			[ "$(pidof mihomo)" ] && [ "$confignum" -a ! "$(echo $confignum | sed 's/[1-9]//g')" ] && [ $confignum -le 13 ] && {
 				echo "========================================================="
 				echo -e "${BLUE}Clash-mihomo $YELLOW正在运行中！修改前需要先停止运行 ${BLUE}Clash-mihomo $YELLOW！$RESET"
 				echo "---------------------------------------------------------"
@@ -850,6 +872,26 @@ main(){
 				1)
 					[ "$redirect_mode" = "tproxy" ] && redirect_mode=mixed || { modprobe xt_TPROXY 2> /dev/null && redirect_mode=tproxy && rmmod xt_TPROXY || echo -e "\n${BLUE}TPROXY $RED内核模块不存在，无法切换！$RESET"; };main $num;;
 				2)
+					echo "========================================================="
+					echo "请输入你的选项："
+					echo "---------------------------------------------------------"
+					echo -e "1. $YELLOW修     改 ${SKYBLUE}DNS解析模式：${BLUE}redir-host$RESET"
+					echo -e "2. $YELLOW修     改 ${SKYBLUE}DNS解析模式：${BLUE}mixed$YELLOW（海外fake-ip国内real-ip）$RESET"
+					echo -e "3. $YELLOW修     改 ${SKYBLUE}DNS解析模式：${BLUE}fake-ip$RESET"
+					echo "---------------------------------------------------------"
+					echo "0. 返回上一页"
+					echo && read -p "请输入对应选项的数字 > " configdnsmodenum
+					case "$configdnsmodenum" in
+						1)
+							dns_mode=redir-host;main $num;;
+						2)
+							dns_mode=mixed;main $num;;
+						3)
+							dns_mode=fake-ip;main $num;;
+						0)
+							main $num;;
+					esac;;
+				3)
 					echo && read -p "请输入透明代理端口：" redir_port_temp
 					[ "$redir_port_temp" ] && if [ "$redir_port_temp" = "0" ];then
 						main $num
@@ -868,7 +910,7 @@ main(){
 							fi
 						fi
 					fi;;
-				3)
+				4)
 					echo && read -p "请输入混合代理端口：" mixed_port_temp
 					[ "$mixed_port_temp" ] && if [ "$mixed_port_temp" = "0" ];then
 						main $num
@@ -887,7 +929,7 @@ main(){
 							fi
 						fi
 					fi;;
-				4)
+				5)
 					echo && read -p "请输入TPROXY透明代理端口：" tproxy_port_temp
 					[ "$tproxy_port_temp" ] && if [ "$tproxy_port_temp" = "0" ];then
 						main $num
@@ -906,7 +948,7 @@ main(){
 							fi
 						fi
 					fi;;
-				5)
+				6)
 					echo && read -p "请输入DNS服务监听端口：" dns_port_temp
 					[ "$dns_port_temp" ] && if [ "$dns_port_temp" = "0" ];then
 						main $num
@@ -925,7 +967,7 @@ main(){
 							fi
 						fi
 					fi;;
-				6)
+				7)
 					echo && read -p "请输入网页UI面板监听端口：" dashboard_port_temp
 					[ "$dashboard_port_temp" ] && if [ "$dashboard_port_temp" = "0" ];then
 						main $num
@@ -943,22 +985,22 @@ main(){
 							fi
 						fi
 					fi;;
-				7)
+				8)
 					echo && read -p "请输入访问内核验证用户名：" authusername_temp
 					authusername=$(echo $authusername_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
-				8)
+				9)
 					echo && read -p "请输入访问内核验证密码：" authpassword_temp
 					authpassword=$(echo $authpassword_temp | awk '{print $1}' | sed 's/[^ -~]//g') && main $num;;
-				9)
-					[ "$core_ipv6" = "开" ] && core_ipv6=关 || core_ipv6=开;main $num;;
 				10)
-					[ "$dns_ipv6" = "开" ] && dns_ipv6=关 || dns_ipv6=开;main $num;;
+					[ "$core_ipv6" = "开" ] && core_ipv6=关 || core_ipv6=开;main $num;;
 				11)
+					[ "$dns_ipv6" = "开" ] && dns_ipv6=关 || dns_ipv6=开;main $num;;
+				12)
 					echo && read -p "请输入默认DNS解析服务器（如有多个请用逗号‘,’隔开）：" dns_default_temp
 					[ "$dns_default_temp" = "0" ] && main $num || { [ "$dns_default_temp" ] && dns_default=$(echo $dns_default_temp | awk '{print $1}' | sed 's/,*$// | sed 's/[^ -~]//g'') && main $num; };;
-				12)
-					echo && read -p "请输入默认DNS解析服务器（如有多个请用逗号‘,’隔开）：" dns_fallback_temp
-					[ "$dns_fallback_temp" = "0" ] && main $num || { [ "$dns_fallback_temp" ] && dns_fallback=$(echo $dns_fallback_temp | awk '{print $1}' | sed 's/[^ -~]//g' | sed 's/,*$//') && main $num; };;
+				13)
+					echo && read -p "请输入默认DNS解析服务器（如有多个请用逗号‘,’隔开）：" dns_oversea_temp
+					[ "$dns_oversea_temp" = "0" ] && main $num || { [ "$dns_oversea_temp" ] && dns_oversea=$(echo $dns_oversea_temp | awk '{print $1}' | sed 's/[^ -~]//g' | sed 's/,*$//') && main $num; };;
 				0)
 					main;;
 			esac;;
