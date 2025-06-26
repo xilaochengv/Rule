@@ -50,7 +50,7 @@ start(){
 	[ "$authusername" -a "$authpassword" ] && authentication="authentication: [\"$authusername:$authpassword\"]"
 	[ "$core_ipv6" = "开" ] && ipv6_core=true || ipv6_core=false
 	[ "$dns_ipv6" = "开" ] && ipv6_dns=true || ipv6_dns=false
-	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" ] && {
+	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" -o "$dns_mode" = "mixed" ] && {
 		nameserverpolicy="'geosite: cn,apple': [$dns_default]"
 		fakeipfilter_geosite="    - geosite:cn,apple\n"
 	}
