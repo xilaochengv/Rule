@@ -338,6 +338,7 @@ startfirewall(){
 			iptables -w -t nat -A Clash -d $wanipv4 -p tcp -m comment --comment "tcp流量目标地址为本地WAN口IPv4地址，直接绕过Clash内核" -j RETURN
 		}
 	}
+	[ ! "$dns_mode" = "redir-host" ] && iptables -w -t mangle -A Clash -d 198.18.0.1/16 -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
 	for ip in $routes;do
 		[ "$redirect_mode" = "tproxy" ] && iptables -w -t mangle -A Clash -d $ip -m comment --comment "流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN || {
 			iptables -w -t mangle -A Clash -d $ip -p udp -m comment --comment "udp流量目的地为特殊IP网段，直接绕过Clash内核" -j RETURN
