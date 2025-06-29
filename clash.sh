@@ -40,11 +40,11 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$Docker_Proxy" -o ! "$(ip route | grep docker | awk '{print $1}' | head -1)" ] && Docker_Proxy=关
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
-[ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://ghproxy.net\nhttps://gh-proxy.com\nhttps://github.moeyy.xyz\nhttps://mirror.ghproxy.com" > $CLASHDIR/mirror_server.ini
+[ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://ghproxy.net\nhttps://cdn.gh-proxy.com\nhttps://ghfast.top" > $CLASHDIR/mirror_server.ini
 [ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
 [ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
-[ ! -f $CLASHDIR/mihomo -a ! -f $CLASHDIR/GeoIP.dat -a ! -f $CLASHDIR/GeoSite.dat -a $Available -lt 3000 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间不足！请更换本脚本存放位置！$RESET" && exit
+[ ! -f $CLASHDIR/config.ini -a $Available -lt 1024 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET" && exit
 start(){
 	stop start && update missingfiles
 	[ "$authusername" -a "$authpassword" ] && authentication="authentication: [\"$authusername:$authpassword\"]"
@@ -216,25 +216,52 @@ urlencode() {
 	done
 }
 download(){
-	rm -f $1 && failedcount=1 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
+	rm -f $1 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	[ "$4" ] && {
+		echo -e "\n$YELLOW获取$2文件大小······$RESET \c" && failedcount=1 && Available=$(df $Filesystem | tail -1 | awk '{print $4}')
+		size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+		while [ ! "$size" -a $failedcount -lt 3 ];do
+			echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
+			echo -e "\n$YELLOW获取$2文件大小······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
+		done
+		[ ! "$size" ] && {
+			if [ "$(echo "$dlurl" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
+				for mirrorserver in $(cat $CLASHDIR/mirror_server.ini);do
+					echo -e "$RED获取失败！即将尝试切换加速镜像重新获取！$RESET" && sleep 1 && failedcount=1
+					dlurl="$(echo "$dlurl" | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+					echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver $YELLOW······$RESET \c"
+					size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+					while [ ! "$size" -a $failedcount -lt 3 ];do
+						echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
+						echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver $YELLOW······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
+					done
+					[ "$size" ] && mirrorserver=$mirrorserver && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && saveconfig && break
+				done
+				[ "$size" ] && [ $Available -lt $size ] && echo -e "\n$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET\n" && return 1 || size=""
+			else
+				return 1
+			fi
+		}
+		[ "$size" ] && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && [ $Available -lt $size ] && echo -e "\n$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET\n" && return 1
+	}
+	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && failedcount=1
 	http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-	while [ $? != 0 -a $failedcount -lt 3 -o $http_code != 200 -a $failedcount -lt 3 ];do
+	while [ $http_code != 200 -a $failedcount -lt 3 ];do
 		rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
 		echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 	done
-	[ $? != 0 -o $http_code != 200 ] && {
+	[ $http_code != 200 ] && {
 		if [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
 			for mirrorserver in $(cat $CLASHDIR/mirror_server.ini);do
 				rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=1
 				dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
 				echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
 				http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-				while [ $? != 0 -a $failedcount -lt 3 -o $http_code != 200 -a $failedcount -lt 3 ];do
+				while [ $http_code != 200 -a $failedcount -lt 3 ];do
 					rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
 					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
 				done
-				[ $? = 0 -a $http_code = 200 ] && mirrorserver=$mirrorserver && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
+				[ $http_code = 200 ] && mirrorserver=$mirrorserver && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
 			done
 			rm -f $1 && return 1
 		else
@@ -318,11 +345,11 @@ update(){
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ "$(grep -i geoip $CLASHDIR/config_original.yaml)" ] && [ ! -f $CLASHDIR/GeoIP.dat ] && {
-		download "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url"
+		download "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url" "true"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" -o "$dns_mode" = "mixed" ] && [ ! -f $CLASHDIR/GeoSite.dat ] && {
-		download "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url"
+		download "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url" "true"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ ! "$1" -o "$1" = "restore" -o "$1" = "crontab" ] && start
@@ -792,7 +819,7 @@ showfirewall(){
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
 	saveconfig && num="$1" && confignum=$2 && [ ! "$num" ] && echo && {
-		[ ! "$showed" ] && echo -e "$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，本脚本制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
+		[ ! "$showed" ] && echo -e "$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
@@ -1216,7 +1243,7 @@ main(){
 						echo "1. 确认停止运行并更新"
 						echo "---------------------------------------------------------"
 						echo "0. 返回上一页"
-						echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] && stop || { [ "$mihomonum" = "0" ] && main $num || exit; }
+						echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] || { [ "$mihomonum" = "0" ] && main $num || exit; }
 					}
 					mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
 				0)
@@ -1230,7 +1257,7 @@ main(){
 				echo "1. 确认停止运行并更新"
 				echo "---------------------------------------------------------"
 				echo "0. 返回上一页"
-				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] && stop || { [ "$mihomonum" = "0" ] && main $num || exit; }
+				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] || { [ "$mihomonum" = "0" ] && main $num || exit; }
 			}
 			update;;
 		13)
