@@ -5,7 +5,7 @@ sed -i '/clash=/d' /etc/profile && echo -e "\nexport CLASHDIR=$(dirname $0);alia
 [ ! "$(uci -q get firewall.firewalluser.path)" ] && echo -e "config inculde 'firewalluser'\n\toption path '/etc/firewall.user'\n\toption reload '1'" >> /etc/config/firewall && sed -i '/./,/^$/!d' /etc/config/firewall
 sed -i '/clash/d' /etc/firewall.user 2> /dev/null;[ ! "$(grep "$0 start$" /etc/firewall.user 2> /dev/null)" ] && echo -e "[ \"\$(pidof mihomo)\" ] && $0 startfirewall" >> /etc/firewall.user
 route=$(ip route | grep br-lan | awk {'print $1'})
-routes="0.0.0.0/8\n10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.168.0.0/16\n224.0.0.0/4\n240.0.0.0/4\n255.255.255.255\n$route";routes=$(echo -e $routes | awk '!a[$0]++')
+routes="10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n192.168.0.0/16\n224.0.0.0/4\n240.0.0.0/4\n$route";routes=$(echo -e $routes | awk '!a[$0]++')
 [ "$(uci -q get ipv6.settings.enabled)" = 0 ] && for routev6 in $(ip -6 route | awk '{print $1}');do ip -6 route del $routev6;done
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
 routesv6="::1 $routev6"
