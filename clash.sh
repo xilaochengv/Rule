@@ -159,7 +159,7 @@ saveconfig(){
 	echo "sub_url='$sub_url' #订阅配置转换服务器地址" >> $CLASHDIR/config.ini
 	echo "config_url='$config_url' #订阅配置转换规则文件地址（仅在订阅配置转换服务为开时可用）" >> $CLASHDIR/config.ini
 	echo "exclude_name='$exclude_name' #过滤包含关键字的节点（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
-	echo "exclude_type='$exclude_type' #过滤包含关键字的节点类型（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini	
+	echo "exclude_type='$exclude_type' #过滤包含关键字的节点类型（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
 	echo "udp_support=$udp_support #是否开启udp代理（仅在订阅配置转换服务为开时可用，需要机场节点支持）" >> $CLASHDIR/config.ini
 	echo "tls13=$tls13 #是否开启节点的tls1.3功能" >> $CLASHDIR/config.ini
 	echo "skip_cert_verify=$skip_cert_verify #是否开启跳过TLS节点的证书验证功能" >> $CLASHDIR/config.ini
@@ -1178,7 +1178,7 @@ main(){
 					echo -e "8. $YELLOW切     换 $SKYBLUE订阅配置转换规则\t\t$YELLOW正在使用：$states$RESET"
 				}
 				echo -e "9. $YELLOW更     换 $SKYBLUE订阅链接地址\t\t$YELLOW正在使用：$SKYBLUE$sublink$RESET"
-				echo -e "10.$YELLOW设     置 $SKYBLUE本地后端转换程序路径\t$YELLOW当前路径: $SKYBLUE$subconverter_path$RESET"
+				[ "$subconverter" = "开" ] && echo -e "10.$YELLOW设     置 $SKYBLUE本地后端转换程序路径\t$YELLOW当前路径: $SKYBLUE$subconverter_path$RESET"
 				echo "11.立即更新订阅配置"
 				echo "---------------------------------------------------------"
 				echo "0. 返回上一页"
@@ -1258,9 +1258,12 @@ main(){
 						echo -e "\n$YELLOW请输入正确格式以http开头的订阅链接地址！$RESET\n" && sleep 1 && main $num
 					fi;;
 				10)
+					[ "$subconverter" = "开" ] || return;
 					echo && read -p "请输入本地后端转换程序的绝对路径：" subconverter_path_temp
 					if [ "$(echo $subconverter_path_temp | awk '{print $1}' | grep ^/.*)" -a "${subconverter_path_temp:1}" ];then
-						subconverter_path=$(echo $subconverter_path_temp | awk '{print $1}') && main $num
+						$subconverter_path_temp 2>&1 | grep Startup > /tmp/subconverter_path_test & sleep 1
+						while [ "$(ps | grep -v grep | grep "$subconverter_path_temp" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep "$subconverter_path_temp" | head -1 | awk '{print $1}');done
+						[ "$(cat /tmp/subconverter_path_test 2> /dev/null)" ] && subconverter_path=$(echo $subconverter_path_temp | awk '{print $1}') && rm -f /tmp/subconverter_path_test && main $num || { echo -e "\n$RED请输入本地后端转换程序 ${BLUE}subconverter $YELLOW的绝对路径！$RESET" && sleep 1 && main $num; }
 					elif [ "$subconverter_path_temp" = 0 ];then
 						main $num
 					elif [ "$subconverter_path_temp" ];then
