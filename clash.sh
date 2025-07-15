@@ -323,9 +323,12 @@ update(){
 					done
 					let subcount++
 				done
-			done && {
+			done && echo testing >> $CLASHDIR/proxy-groups.yaml && {
 				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_name_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
-				[ "$exclude_type" ] && exclude_type_name=$(grep -E "type: ("$exclude_type")" $CLASHDIR/proxies.yaml | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && exclude_type_temp=$(echo $exclude_type | sed 's/|/\\\|/g') && sed -i "/type: \($exclude_type_temp\)/d" $CLASHDIR/proxies.yaml && sed -i "/$exclude_type_name/d" $CLASHDIR/proxy-groups.yaml
+				[ "$exclude_type" ] && exclude_type_name=$(sed 's/\(.*type: [^,]*\).*/\1/' $CLASHDIR/proxies.yaml | grep -E "type:.*$exclude_type" | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_type_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
+				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g')";done
+				for stopline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do stoplines="$stoplines $((stopline-1))";done
+				sed -i '$d' $CLASHDIR/proxy-groups.yaml && lines=$(echo "$startlines $stoplines" | sort | awk '{for(i=1;i<=NF;i+=2) printf "-e %s,%sd ", $i, $(i+1)}') && [ "$lines" ] && sed -i $lines $CLASHDIR/proxy-groups.yaml && startlines_name=$(echo $startlines_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($startlines_name\)/d" $CLASHDIR/proxy-groups.yaml
 			}
 			echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
 			echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
