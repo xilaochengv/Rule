@@ -30,8 +30,8 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$dns_hijack" ] && dns_hijack=关
 [ ! "$dnsipv6_hijack" -o "$dns_ipv6" != "开" -o "$(cat $CLASHDIR/config.yaml 2> /dev/null | grep '^ .*ipv6:'| awk '{print $2}')" != "true" ] && dnsipv6_hijack=关
 [ ! "$dns_port" ] && dns_port=1053
-[ ! "$dns_default" ] && dns_default='223.6.6.6' || dns_default=$(echo $dns_default | sed 's/,/, /g')
-[ ! "$dns_oversea" ] && dns_oversea='https://basic.rethinkdns.com, https://dns.rabbitdns.org/dns-query' || dns_oversea=$(echo $dns_oversea | sed 's/,/, /g')
+[ ! "$dns_default" ] && dns_default='223.6.6.6, 119.29.29.29' || dns_default=$(echo $dns_default | sed 's/,/, /g')
+[ ! "$dns_oversea" ] && dns_oversea='https://ada.openbld.net/dns-query, https://v.recipes/dns-query, https://wikimedia-dns.org/dns-query' || dns_oversea=$(echo $dns_oversea | sed 's/,/, /g')
 [ ! "$mac_filter" ] && mac_filter=关
 [ ! "$mac_filter_mode" ] && mac_filter_mode=黑名单
 [ ! "$cnip_skip" ] && cnip_skip=关
@@ -141,7 +141,7 @@ EOF
 	rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
 	[ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && [ -d /sys/module/shortcut_fe_cm ] && rmmod shortcut-fe-cm &> /dev/null
-	return 0
+	mihomonum=0 && return 0
 }
 stop(){
 	killall mihomo 2> /dev/null
@@ -1261,7 +1261,7 @@ main(){
 						echo "0. 返回上一页"
 						echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] || { [ "$mihomonum" = "0" ] && main $num || exit; }
 					}
-					mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start;;
+					[ ! "$mihomonum" = "0" ] && { mv -f $CLASHDIR/config_original.yaml $CLASHDIR/config_original.yaml.backup 2> /dev/null;stop && start; };;
 				0)
 					main;;
 			esac;;
@@ -1273,9 +1273,9 @@ main(){
 				echo "1. 确认停止运行并更新"
 				echo "---------------------------------------------------------"
 				echo "0. 返回上一页"
-				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] || { [ "$mihomonum" = "0" ] && main $num || exit; }
+				echo && read -p "请输入对应选项的数字 > " mihomonum && [ "$mihomonum" = "1" ] || { [ "$mihomonum" = "0" ] && main || exit; }
 			}
-			update;;
+			[ ! "$mihomonum" = "0" ] && update;;
 		13)
 			if [ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ];then
 				rm -f /etc/init.d/Clash_mihomo /etc/rc.d/S99Clash_mihomo && main
