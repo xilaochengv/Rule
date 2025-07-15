@@ -522,7 +522,7 @@ startfirewall(){
 							iptables -w -t mangle -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j TPROXY --on-port $tproxy_port --tproxy-mark $tproxy_port
 						} || {
 							iptables -w -t mangle -A Clash -s $ip -m comment --comment "流量进入Clash内核（$device）" -j MARK --set-mark $redir_port
-							iptables -w -t nat -A Clash -s $ip -m comment --comment "流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
+							iptables -w -t nat -A Clash -s $ip -p tcp -m comment --comment "tcp流量进入Clash内核（$device）" -j REDIRECT --to-port $redir_port
 						}
 						[ "$core_ipv6" = "开" ] && echo -e "\n$BLUE$ip $RED加入ipv6防火墙白名单失败！（不支持使用ipv4地址进行添加，如有需要请将设备名单修改为mac地址）$RESET"
 					else
@@ -577,11 +577,11 @@ startfirewall(){
 			}
 		else
 			iptables -w -t mangle -A Clash -s $route -m comment --comment "流量进入Clash内核（$route网段）" -j MARK --set-mark $redir_port
-			iptables -w -t nat -A Clash -s $route -m comment --comment "流量进入Clash内核（$route网段）" -j REDIRECT --to-port $redir_port
+			iptables -w -t nat -A Clash -s $route -p tcp -m comment --comment "tcp流量进入Clash内核（$route网段）" -j REDIRECT --to-port $redir_port
 			[ "$core_ipv6" = "开" ] && {
 				for route6 in $routev6;do
 					ip6tables -w -t mangle -A Clash -s $route6 -m comment --comment "流量进入Clash内核（$route6网段）" -j MARK --set-mark $redir_port
-					ip6tables -w -t nat -A Clash -s $route6 -m comment --comment "流量进入Clash内核（$route6网段）" -j REDIRECT --to-port $redir_port
+					ip6tables -w -t nat -A Clash -s $route6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route6网段）" -j REDIRECT --to-port $redir_port
 				done
 			}
 		fi
@@ -600,11 +600,11 @@ startfirewall(){
 			}
 		else
 			iptables -w -t mangle -A Clash -s $route_docker -m comment --comment "流量进入Clash内核（$route_docker网段）" -j MARK --set-mark $redir_port
-			iptables -w -t nat -A Clash -s $route_docker -m comment --comment "流量进入Clash内核（$route_docker网段）" -j REDIRECT --to-port $redir_port
+			iptables -w -t nat -A Clash -s $route_docker -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker网段）" -j REDIRECT --to-port $redir_port
 			[ "$core_ipv6" = "开" ] && {
 				for route_docker6 in $route_dockerv6;do
 					ip6tables -w -t mangle -A Clash -s $route_docker6 -m comment --comment "流量进入Clash内核（$route_docker6网段）" -j MARK --set-mark $redir_port
-					ip6tables -w -t nat -A Clash -s $route_docker6 -m comment --comment "流量进入Clash内核（$route_docker6网段）" -j REDIRECT --to-port $redir_port
+					ip6tables -w -t nat -A Clash -s $route_docker6 -p tcp -m comment --comment "tcp流量进入Clash内核（$route_docker6网段）" -j REDIRECT --to-port $redir_port
 				done
 			}
 		fi
