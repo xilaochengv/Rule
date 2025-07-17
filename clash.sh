@@ -809,7 +809,13 @@ showfirewall(){
 sed -i "s@\[ -d /sys/module/shortcut_fe_cm ] |@\[ -d /sys/module/shortcut_fe_cm -o -n \"\$(pidof mihomo)\" ] |@" /etc/init.d/shortcut-fe
 main(){
 	saveconfig && num="$1" && confignum=$2 && [ ! "$num" ] && echo && {
-		[ ! "$showed" ] && echo -e "$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
+		[ ! "$showed" ] && {
+			echo -e "$RED$BLINK欢迎使用！！！！！！！！觉得好用请多多扫码支持！！谢谢！！$RESET\n\n$YELLOW微信扫码：$RESET\n"
+			echo H4sIAAAAAAAAA71UwQ3DMAj8d4oblQcPJuiAmaRSHMMZYzcvS6hyXAPHcXB97Tpon5PJcj5cX2XDfS3wL2mW3i38FhkMwHNqoaSb9YP291p7rSInTCneDRugbLr0q7uhlbX7lkUwxxVsfctaMMW/2a87YPD01e+yGiF6onHq/MAvlFwGUO2AMW7VFwODFGolOMBToaU6d1UEAYwp+jtCN9dxdsppCr4Q4N0F5EbiEiKS/P5MRupGKMGIFp4Jv8jv1lzNyiLMg3QcEc03CMI6U70PImYSU9d2nhxLttkkYKF01fZ/Q9n6Cvu0D1i7gd1rYQZjG2ynYrtL5md8r5P7C7YO2PF8PwRFQamaBwAA | base64 -d | gzip -d
+			echo -e "\n$YELLOW支付宝扫码：$RESET\n"
+			echo H4sIAAAAAAAAA71USQ7EMAi7zyv8VA4c8oI+sC8ZqQ3gLNC5TCVUKSlgsAnn0c4X7fMm2IyH81A2XNf3wb0Et2d4J3EJQgMog/Rw0Pn66uKdZyRsO3tJYp5qaEij9hrozpolV662nz17EV1igVgQUBPEDQy7Owh+6sYLE+4DlF24I2VYLJVKgRQRzpG1EyJdhYPhB7Wq/K2zINwLaM44w9wKT0mlhmSMjeKLN+Uj5koGuSlKIyBnKtA34yBLaJthCu1nFVkmUy6YtKEEHjRJ94D6NIxyBFFtXABJ9mEbCFV8/xD/qKPV72G3B+Ak82PtzCB21jQCT296tz/WFcESrZeTQ/4u/mqv430B27+RdoQHAAA= | base64 -d | gzip -d
+			echo -e "\n$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
+		}
 		echo "========================================================="
 		echo "请输入你的选项："
 		echo "---------------------------------------------------------"
