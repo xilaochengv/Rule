@@ -42,7 +42,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
 [ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://ghproxy.net\nhttps://cdn.gh-proxy.com\nhttps://ghfast.top" > $CLASHDIR/mirror_server.ini
-[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io" > $CLASHDIR/convert_server.ini
+[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io\n自建后端转换 http://127.0.0.1:25500" > $CLASHDIR/convert_server.ini
 [ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
 [ ! -f $CLASHDIR/config.ini -a $Available -lt 1024 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET" && exit
@@ -161,8 +161,8 @@ saveconfig(){
 	echo "exclude_name='$exclude_name' #过滤包含关键字的节点（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
 	echo "exclude_type='$exclude_type' #过滤包含关键字的节点类型（仅在订阅配置转换服务为开时可用，如有多个关键字请用竖线‘|’隔开）" >> $CLASHDIR/config.ini
 	echo "udp_support=$udp_support #是否开启udp代理（仅在订阅配置转换服务为开时可用，需要机场节点支持）" >> $CLASHDIR/config.ini
-	echo "tls13=$tls13 #是否开启节点的tls1.3功能" >> $CLASHDIR/config.ini
-	echo "skip_cert_verify=$skip_cert_verify #是否开启跳过TLS节点的证书验证功能" >> $CLASHDIR/config.ini
+	echo "tls13=$tls13 #是否开启节点的tls1.3功能（仅在订阅配置转换服务为开时可用，需要机场节点支持）" >> $CLASHDIR/config.ini
+	echo "skip_cert_verify=$skip_cert_verify #是否开启跳过TLS节点的证书验证功能（仅在订阅配置转换服务为开时可用）" >> $CLASHDIR/config.ini
 	echo "mirrorserver='$mirrorserver' #Github加速镜像服务器地址" >> $CLASHDIR/config.ini
 	echo "geoip_url='$geoip_url' #GEO-IP数据库文件下载地址" >> $CLASHDIR/config.ini
 	echo "geosite_url='$geosite_url' #GEO-SITE数据库文件下载地址" >> $CLASHDIR/config.ini
@@ -285,27 +285,36 @@ update(){
 		sed -i "s/9090/$dashboard_port/g;s/127.0.0.1/$localip/g" $CLASHDIR/ui/assets/index.628acf3b.js
 	}
 	[ ! -f $CLASHDIR/mihomo ] && {
-		while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep tag_name | cut -f4 -d '"');done
+		latestversion="" && while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest" | grep tag_name | cut -f4 -d '"');done
 		download "/tmp/mihomo.gz" "Clash主程序文件" "https://github.com/MetaCubeX/mihomo/releases/download/$latestversion/mihomo-linux-arm64-$latestversion.gz"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
-		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && chmod 755 /tmp/mihomo && mv -f /tmp/mihomo $CLASHDIR/mihomo 2> /dev/null || ln -sf /tmp/mihomo $CLASHDIR/mihomo
+		rm -f $CLASHDIR/mihomo /tmp/mihomo && gzip -d /tmp/mihomo.gz && chmod 755 /tmp/mihomo && mv -f /tmp/mihomo $CLASHDIR/mihomo 2> /dev/null || ln -sf /tmp/mihomo $CLASHDIR/mihomo;rm -f /tmp/mihomo.gz
 	}
 	[ ! -f $CLASHDIR/config_original.yaml ] && {
 		if [ "$subconverter" = "开" ];then
-			[ "$subconverter_path" ] && $subconverter_path &> /dev/null & sleep 1
+			[ "$(echo $sub_url | grep 127.0.0.1:25500)" ] && {
+				[ "$subconverter_path" ] && { $subconverter_path &> /dev/null & sleep 1; } || {
+					latestversion="" && while [ ! "$latestversion" ];do latestversion=$(curl --connect-timeout 3 -sk "https://api.github.com/repos/MetaCubeX/subconverter/releases/latest" | grep tag_name | cut -f4 -d '"');done
+					download "/tmp/subconverter.gz" "后端转换程序文件" "https://github.com/MetaCubeX/subconverter/releases/download/$latestversion/subconverter_aarch64.tar.gz"
+					[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
+					tar -zxf /tmp/subconverter.gz -C /tmp && rm -f /tmp/subconverter.gz && /tmp/subconverter/subconverter &> /dev/null & sleep 1
+				}
+			}
 			subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
 				[ "$udp_support" = "开" ] && sub_udp="&udp=true"
 				[ "$tls13" = "开" ] && sub_tls13="&tls13=true"
 				[ "$skip_cert_verify" = "开" ] && "&sub_scv=true"
 				sublink_urlencode="&url=$(urlencode "$url")";[ "$config_url" ] && config_url_urlencode="&config=$(urlencode "$config_url")"
 				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash$sublink_urlencode$config_url_urlencode$sub_scv$sub_udp$sub_tls13"
-				while [ "$(ps | grep -v grep | grep "$subconverter_path" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep "$subconverter_path" | head -1 | awk '{print $1}');done
-				[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
+				[ "$subconverter_path" ] && while [ "$(ps | grep -v grep | grep -E "$subconverter_path" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "$subconverter_path" | head -1 | awk '{print $1}');done
+				while [ "$(ps | grep -v grep | grep -E "subconverter" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "subconverter" | head -1 | awk '{print $1}');done
+				rm -rf /tmp/subconverter && [ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
+					[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo -e "$RED下载失败！请确认转换规则网址 $SKYBLUE$config_url $RED是否能正常访问！$RESET"
 					if [ -f $CLASHDIR/config_original.yaml.backup ];then
-						echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
+						[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo;echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
 						mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
 					else
-						echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
+						[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo;echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
 					fi
 				}
 				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
@@ -326,9 +335,9 @@ update(){
 			done && echo testing >> $CLASHDIR/proxy-groups.yaml && {
 				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_name_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
 				[ "$exclude_type" ] && exclude_type_name=$(sed 's/\(.*type: [^,]*\).*/\1/' $CLASHDIR/proxies.yaml | grep -E "type:.*$exclude_type" | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_type_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
-				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g')";done
-				for stopline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do stoplines="$stoplines $((stopline-1))";done
-				sed -i '$d' $CLASHDIR/proxy-groups.yaml && lines=$(echo "$startlines $stoplines" | sort | awk '{for(i=1;i<=NF;i+=2) printf "-e %s,%sd ", $i, $(i+1)}') && [ "$lines" ] && sed -i $lines $CLASHDIR/proxy-groups.yaml && startlines_name=$(echo $startlines_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($startlines_name\)/d" $CLASHDIR/proxy-groups.yaml
+				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines\n$(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g')";done
+				for stopline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do stoplines="$stoplines\n$((stopline-1))";done
+				sed -i '$d' $CLASHDIR/proxy-groups.yaml && lines=$(echo -e "$startlines\n$stoplines" | sort) && lines=$(echo $lines | awk '{for(i=1;i<=NF;i+=2) printf "-e %s,%sd ", $i, $(i+1)}') && [ "$lines" ] && sed -i $lines $CLASHDIR/proxy-groups.yaml && startlines_name=$(echo $startlines_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($startlines_name\)/d" $CLASHDIR/proxy-groups.yaml
 			}
 			echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
 			echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
