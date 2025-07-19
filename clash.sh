@@ -132,7 +132,7 @@ EOF
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
-	modprobe tun 2> /dev/null
+	[ "$redirect_mode" = "tproxy" ] || modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
 	[ "$redirect_mode" = "tproxy" ] || while [ ! "$(ifconfig | grep utun)" ];do usleep 100000;done
 	startfirewall && date +%s > $CLASHDIR/starttime
@@ -828,7 +828,7 @@ main(){
 			echo H4sIAAAAAAAAA71UwQ3DMAj8d4oblQcPJuiAmaRSHMMZYzcvS6hyXAPHcXB97Tpon5PJcj5cX2XDfS3wL2mW3i38FhkMwHNqoaSb9YP291p7rSInTCneDRugbLr0q7uhlbX7lkUwxxVsfctaMMW/2a87YPD01e+yGiF6onHq/MAvlFwGUO2AMW7VFwODFGolOMBToaU6d1UEAYwp+jtCN9dxdsppCr4Q4N0F5EbiEiKS/P5MRupGKMGIFp4Jv8jv1lzNyiLMg3QcEc03CMI6U70PImYSU9d2nhxLttkkYKF01fZ/Q9n6Cvu0D1i7gd1rYQZjG2ynYrtL5md8r5P7C7YO2PF8PwRFQamaBwAA | base64 -d | gzip -d
 			echo -e "\n$YELLOW支付宝扫码：$RESET\n"
 			echo H4sIAAAAAAAAA71USQ7EMAi7zyv8VA4c8oI+sC8ZqQ3gLNC5TCVUKSlgsAnn0c4X7fMm2IyH81A2XNf3wb0Et2d4J3EJQgMog/Rw0Pn66uKdZyRsO3tJYp5qaEij9hrozpolV662nz17EV1igVgQUBPEDQy7Owh+6sYLE+4DlF24I2VYLJVKgRQRzpG1EyJdhYPhB7Wq/K2zINwLaM44w9wKT0mlhmSMjeKLN+Uj5koGuSlKIyBnKtA34yBLaJthCu1nFVkmUy6YtKEEHjRJ94D6NIxyBFFtXABJ9mEbCFV8/xD/qKPV72G3B+Ak82PtzCB21jQCT296tz/WFcESrZeTQ/4u/mqv430B27+RdoQHAAA= | base64 -d | gzip -d
-			echo -e "\n$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n\n$YELLOW脚本版本号：$SKYBLUE$version$RESET\n" && showed=true
+			echo -e "\n$YELLOW脚本版本号：$SKYBLUE$version$RESET\n\n$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
 		}
 		echo "========================================================="
 		echo "请输入你的选项："
@@ -1264,7 +1264,7 @@ main(){
 					if [ "$(echo $subconverter_path_temp | awk '{print $1}' | grep ^/.*)" -a "${subconverter_path_temp:1}" ];then
 						$subconverter_path_temp 2>&1 | grep Startup > /tmp/subconverter_path_test & sleep 1
 						while [ "$(ps | grep -v grep | grep "$subconverter_path_temp" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep "$subconverter_path_temp" | head -1 | awk '{print $1}');done
-						[ "$(cat /tmp/subconverter_path_test 2> /dev/null)" ] && subconverter_path=$(echo $subconverter_path_temp | awk '{print $1}') && rm -f /tmp/subconverter_path_test && main $num || { echo -e "\n$RED请输入本地后端转换程序 ${BLUE}subconverter $YELLOW的绝对路径！$RESET" && sleep 1 && main $num; }
+						[ "$(cat /tmp/subconverter_path_test 2> /dev/null)" ] && subconverter_path=$(echo $subconverter_path_temp | awk '{print $1}') && rm -f /tmp/subconverter_path_test && main $num || { echo -e "\n$RED请输入本地后端转换程序 ${BLUE}subconverter $YELLOW的绝对路径！$RESET" && rm -f /tmp/subconverter_path_test && sleep 1 && main $num; }
 					elif [ "$subconverter_path_temp" = 0 ];then
 						main $num
 					elif [ "$subconverter_path_temp" ];then
