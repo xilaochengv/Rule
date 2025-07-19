@@ -1,4 +1,4 @@
-version=v1.0.0
+version=v1.0.0a
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -338,9 +338,9 @@ update(){
 					let subcount++
 				done
 			done && echo testing >> $CLASHDIR/proxy-groups.yaml && {
-				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_name_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
+				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_name_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
 				[ "$exclude_type" ] && exclude_type_name=$(sed 's/\(.*type: [^,]*\).*/\1/' $CLASHDIR/proxies.yaml | grep -E "type:.*$exclude_type" | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_type_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
-				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines\n$(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g')";done
+				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines\n$(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g')";done
 				for stopline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do stoplines="$stoplines\n$((stopline-1))";done
 				sed -i '$d' $CLASHDIR/proxy-groups.yaml && lines=$(echo -e "$startlines\n$stoplines" | sort) && lines=$(echo $lines | awk '{for(i=1;i<=NF;i+=2) printf "-e %s,%sd ", $i, $(i+1)}') && [ "$lines" ] && sed -i $lines $CLASHDIR/proxy-groups.yaml && startlines_name=$(echo $startlines_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($startlines_name\)/d" $CLASHDIR/proxy-groups.yaml
 			}
