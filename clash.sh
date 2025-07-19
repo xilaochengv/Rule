@@ -1,3 +1,4 @@
+version=v1.0.0
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -230,16 +231,18 @@ download(){
 		done
 		[ ! "$size" ] && {
 			if [ "$(echo "$dlurl" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
-				for mirrorserver in $(cat $CLASHDIR/mirror_server.ini);do
-					echo -e "$RED获取失败！即将尝试切换加速镜像重新获取！$RESET" && sleep 1 && failedcount=1
-					dlurl="$(echo "$dlurl" | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-					echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver $YELLOW······$RESET \c"
-					size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
-					while [ ! "$size" -a $failedcount -lt 3 ];do
-						echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
-						echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver $YELLOW······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
-					done
-					[ "$size" ] && mirrorserver=$mirrorserver && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && saveconfig && break
+				for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
+					[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
+						echo -e "$RED获取失败！即将尝试切换加速镜像重新获取！$RESET" && sleep 1 && failedcount=1
+						dlurl="$(echo "$dlurl" | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
+						echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver_temp $YELLOW······$RESET \c"
+						size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+						while [ ! "$size" -a $failedcount -lt 3 ];do
+							echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
+							echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver_temp $YELLOW······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
+						done
+						[ "$size" ] && mirrorserver=$mirrorserver_temp && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && saveconfig && break
+					}
 				done
 				[ "$size" ] && [ $Available -lt $size ] && echo -e "\n$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET\n" && return 1 || size=""
 			else
@@ -256,16 +259,18 @@ download(){
 	done
 	[ $http_code != 200 ] && {
 		if [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
-			for mirrorserver in $(cat $CLASHDIR/mirror_server.ini);do
-				rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=1
-				dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-				echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
-				http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-				while [ $http_code != 200 -a $failedcount -lt 3 ];do
-					rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
-					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-				done
-				[ $http_code = 200 ] && mirrorserver=$mirrorserver && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
+			for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
+				[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
+					rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=1
+					dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
+					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
+					http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
+					while [ $http_code != 200 -a $failedcount -lt 3 ];do
+						rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
+						echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
+					done
+					[ $http_code = 200 ] && mirrorserver=$mirrorserver_temp && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
+				}
 			done
 			rm -f $1 && return 1
 		else
@@ -823,7 +828,7 @@ main(){
 			echo H4sIAAAAAAAAA71UwQ3DMAj8d4oblQcPJuiAmaRSHMMZYzcvS6hyXAPHcXB97Tpon5PJcj5cX2XDfS3wL2mW3i38FhkMwHNqoaSb9YP291p7rSInTCneDRugbLr0q7uhlbX7lkUwxxVsfctaMMW/2a87YPD01e+yGiF6onHq/MAvlFwGUO2AMW7VFwODFGolOMBToaU6d1UEAYwp+jtCN9dxdsppCr4Q4N0F5EbiEiKS/P5MRupGKMGIFp4Jv8jv1lzNyiLMg3QcEc03CMI6U70PImYSU9d2nhxLttkkYKF01fZ/Q9n6Cvu0D1i7gd1rYQZjG2ynYrtL5md8r5P7C7YO2PF8PwRFQamaBwAA | base64 -d | gzip -d
 			echo -e "\n$YELLOW支付宝扫码：$RESET\n"
 			echo H4sIAAAAAAAAA71USQ7EMAi7zyv8VA4c8oI+sC8ZqQ3gLNC5TCVUKSlgsAnn0c4X7fMm2IyH81A2XNf3wb0Et2d4J3EJQgMog/Rw0Pn66uKdZyRsO3tJYp5qaEij9hrozpolV662nz17EV1igVgQUBPEDQy7Owh+6sYLE+4DlF24I2VYLJVKgRQRzpG1EyJdhYPhB7Wq/K2zINwLaM44w9wKT0mlhmSMjeKLN+Uj5koGuSlKIyBnKtA34yBLaJthCu1nFVkmUy6YtKEEHjRJ94D6NIxyBFFtXABJ9mEbCFV8/xD/qKPV72G3B+Ak82PtzCB21jQCT296tz/WFcESrZeTQ/4u/mqv430B27+RdoQHAAA= | base64 -d | gzip -d
-			echo -e "\n$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n" && showed=true
+			echo -e "\n$YELLOW作者自用 ${BLUE}Clash-mihomo $YELLOW脚本，制作基于网络：${SKYBLUE}PPPoE拨号上网$YELLOW，路由器型号：$SKYBLUE小米AX9000（RA70）$RESET\n\n$YELLOW脚本版本号：$SKYBLUE$version$RESET\n" && showed=true
 		}
 		echo "========================================================="
 		echo "请输入你的选项："
@@ -858,6 +863,7 @@ main(){
 		echo -e "12. $YELLOW更     新 $SKYBLUE所有相关文件$RESET"
 		[ "$(grep "$0 start$" /etc/rc.d/S99Clash_mihomo 2> /dev/null)" ] && states="$GREEN已开启" || states="$RED已关闭"
 		echo -e "13. $GREEN开启$RESET/$RED关闭 $SKYBLUE开机自启动\t\t$YELLOW当前状态：$states$RESET"
+		echo -e "14. $YELLOW更     新 $SKYBLUE本脚本文件$RESET"
 		echo -e "88. $RED一键卸载  ${BLUE}Clash-mihomo $RED所有文件$RESET"
 		echo "---------------------------------------------------------"
 		echo && read -p "请输入对应选项的数字 > " num
@@ -1297,6 +1303,13 @@ main(){
 			else
 				echo -e "#!/bin/sh /etc/rc.common\n\nSTART=99\n\nstart() {\n\t$0 start\n}" > /etc/init.d/Clash_mihomo && chmod +x /etc/init.d/Clash_mihomo && /etc/init.d/Clash_mihomo enable && main
 			fi;;
+		14)
+			download "/tmp/clash.sh" "本脚本文件" "https://raw.githubusercontent.com/xilaochengv/Rule/refs/heads/main/clash.sh"
+			[ $? != 0 ] && echo -e "$RED更新失败！$RESET" && main || {
+				[ "$(sed -n 1p /tmp/clash.sh | awk -F = '{print $2}')" \> "$version" ] && {
+					echo -e "\n$GREEN已更新到最新版本：$SKYBLUE$(sed -n 1p /tmp/clash.sh | awk -F = '{print $2}')$GREEN！已自动退出脚本，请重新运行！$RESET\n" && mv -f /tmp/clash.sh $0 && chmod 755 $0 && sleep 1 && exit
+				} || { echo -e "\n$YELLOW当前版本：$SKYBLUE$version $YELLOW最新版本：$SKYBLUE$(sed -n 1p /tmp/clash.sh | awk -F = '{print $2}') $YELLOW无需更新！$RESET" && rm -f /tmp/clash.sh && sleep 1 && main; }
+			};;
 		88)
 			echo "========================================================="
 			echo -e "$YELLOW请确认是否卸载：（$BLUE$CLASHDIR$RED文件夹及里面所有文件将会被删除！！！$YELLOW）$RESET"
