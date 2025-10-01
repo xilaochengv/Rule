@@ -1,4 +1,4 @@
-version=v1.0.0a
+version=v1.0.0b
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -11,8 +11,8 @@ routes="10.0.0.0/8\n100.64.0.0/10\n127.0.0.0/8\n169.254.0.0/16\n172.16.0.0/12\n1
 routev6=$(ip -6 route | grep br-lan | awk '{print $1}')
 routesv6="::1 $routev6"
 localip=$(ip route | grep br-lan | awk {'print $9'})
-wanipv4=$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print $4}')
-wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')
+wanipv4=$(ubus call network.interface.wan status | jsonfilter -e '@["ipv4-address"][0].address')
+wanipv6=$(ubus call network.interface.wan status | jsonfilter -e '@["ipv6-address"][0].address')
 [ ! "$tls13" ] && tls13=关
 [ ! "$udp_support" ] && udp_support=关
 [ ! "$skip_cert_verify" ] && skip_cert_verify=关
@@ -43,7 +43,7 @@ wanipv6=$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 /
 [ ! "$Clash_Local_Proxy" ] && Clash_Local_Proxy=关
 [ -s $CLASHDIR/custom_rules.ini ] || echo -e "#说明文档：https://wiki.metacubex.one/config/rules\n#填写格式：\n#DOMAIN,baidu.com,DRIECT（不需要填前面的-符号）" > $CLASHDIR/custom_rules.ini
 [ ! "$(grep ^http $CLASHDIR/mirror_server.ini 2> /dev/null)" ] && echo -e "https://ghproxy.net\nhttps://cdn.gh-proxy.com\nhttps://ghfast.top" > $CLASHDIR/mirror_server.ini
-[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "品云提供 https://sub.id9.cc\n品云备用 https://v.id9.cc\n肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io\n自建后端转换 http://127.0.0.1:25500" > $CLASHDIR/convert_server.ini
+[ ! "$(grep http $CLASHDIR/convert_server.ini 2> /dev/null)" ] && echo -e "肥羊增强 https://url.v1.mk\n肥羊备用 https://sub.d1.mk\nnameless13提供 https://www.nameless13.com\nsubconverter作者提供 https://sub.xeton.dev\nsub-web作者提供 https://api.wcc.best\nsub作者 & lhie1提供 https://api.dler.io\n自建后端转换 http://127.0.0.1:25500" > $CLASHDIR/convert_server.ini
 [ ! "$(grep http $CLASHDIR/config_url.ini 2> /dev/null)" ] && echo -e "作者自用GEO精简规则 https://raw.githubusercontent.com/xilaochengv/Rule/main/rule.ini\n默认版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online.ini\n精简版规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini.ini\n更多去广告规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_AdblockPlus.ini\n多国分组规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_MultiCountry.ini\n无自动测速规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoAuto.ini\n无广告拦截规则 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_NoReject.ini\n全分组规则 重度用户使用 https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Full.ini" > $CLASHDIR/config_url.ini
 Filesystem=$(dirname $0);while [ ! "$(df $Filesystem)" ];do Filesystem=$(echo ${Filesystem%/*});done;Filesystem=$(df $Filesystem | tail -1 | awk '{print $6}');Available=$(df $Filesystem | tail -1 | awk '{print $4}')
 [ ! -f $CLASHDIR/config.ini -a $Available -lt 1024 ] && echo -e "$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET" && exit
@@ -132,12 +132,16 @@ EOF
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
+	cp -f $CLASHDIR/config.yaml /www/Clash-Bigme.yaml
+	sed -i '/authentication/d' /www/Clash-Bigme.yaml
+	sed -i 's#127.0.0.1:54#223.5.5.5, 223.6.6.6, 119.29.29.29, 101.226.4.6, 218.30.118.6#' /www/Clash-Bigme.yaml
+	sed -i 's#127.0.0.1:55#tls://getdnsapi.net, https://ada.openbld.net/dns-query, https://v.recipes/dns-query, https://wikimedia-dns.org/dns-query, https://private.canadianshield.cira.ca/dns-query, https://ibksturm.synology.me/dns-query, https://rx.techomespace.com/dns-query, https://public.ns.nwps.fi/dns-query, https://frd4wvnobp.cloudflare-gateway.com/dns-query, https://dnsguard.pub/dns-query#' /www/Clash-Bigme.yaml
 	[ "$redirect_mode" = "tproxy" ] || modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
 	[ "$redirect_mode" = "tproxy" ] || while [ ! "$(ifconfig | grep utun)" ];do usleep 100000;done
 	startfirewall && date +%s > $CLASHDIR/starttime
 	curl -so /dev/null "http://127.0.0.1:$dashboard_port/group/节点选择/delay?url=https://www.google.com/generate_204&timeout=5000" &
-	echo -e "hosto=\$(ip route | grep br-lan | awk {'print \$9'})\nipv4o=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\nipv6o=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\nwhile [ \"\$(pidof mihomo)\" ];do\n\tsleep 10\n\thostn=\$(ip route | grep br-lan | awk {'print \$9'})\n\tipv4n=\$(ip -o addr | grep pppoe-wan | grep 'inet ' | awk '{print \$4}')\n\tipv6n=\$(ip -o addr | grep pppoe-wan | grep inet6.*global | sed -e 's/.*inet6 //' -e 's#/.*##')\n\t[ \"\$hostn\" -a \"\$hosto\" != \"\$hostn\" -o \"\$ipv4n\" -a \"\$ipv4o\" != \"\$ipv4n\" -o \"\$ipv6n\" -a \"\$ipv6o\" != \"\$ipv6n\" ] && { hosto=\$hostn && ipv4o=\$ipv4n && ipv6o=\$ipv6n && $0 startfirewall; }\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\n\t[ ! \"\$(iptables -w -t mangle -S Clash 2> /dev/null)\" ] && $0 startfirewall\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
+	echo -e "rm -f \$0\nhosto=\$(ip route | grep br-lan | awk {'print \$9'})\nipv4o=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv4-address\"][0].address')\nipv6o=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv6-address\"][0].address')\nwhile [ \"\$(pidof mihomo)\" ];do\n\tsleep 10\n\thostn=\$(ip route | grep br-lan | awk {'print \$9'})\n\tipv4n=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv4-address\"][0].address')\n\tipv6n=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv6-address\"][0].address')\n\t[ \"\$hostn\" -a \"\$hosto\" != \"\$hostn\" -o \"\$ipv4n\" -a \"\$ipv4o\" != \"\$ipv4n\" -o \"\$ipv6n\" -a \"\$ipv6o\" != \"\$ipv6n\" ] && { hosto=\$hostn && ipv4o=\$ipv4n && ipv6o=\$ipv6n && $0 startfirewall; }\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\n\t[ ! \"\$(iptables -w -t mangle -S Clash 2> /dev/null)\" ] && $0 startfirewall\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
 	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n" && rm -f $CLASHDIR/config_original.yaml.backup
 	rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
@@ -221,62 +225,116 @@ urlencode() {
 	done;echo
 }
 download(){
-	rm -f $1 && http_code=0 && dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	[ "$4" ] && {
-		echo -e "\n$YELLOW获取$2文件大小······$RESET \c" && failedcount=1 && Available=$(df $Filesystem | tail -1 | awk '{print $4}')
-		size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
-		while [ ! "$size" -a $failedcount -lt 3 ];do
-			echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
-			echo -e "\n$YELLOW获取$2文件大小······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
-		done
-		[ ! "$size" ] && {
-			if [ "$(echo "$dlurl" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
-				for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
-					[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
-						echo -e "$RED获取失败！即将尝试切换加速镜像重新获取！$RESET" && sleep 1 && failedcount=1
-						dlurl="$(echo "$dlurl" | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
-						echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver_temp $YELLOW······$RESET \c"
-						size=$(curl -m 10 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
-						while [ ! "$size" -a $failedcount -lt 3 ];do
-							echo -e "$RED获取失败！即将尝试重新获取！已尝试获取次数：$failedcount$RESET" && sleep 1 && let failedcount++
-							echo -e "\n$YELLOW获取$2文件大小，当前尝试加速镜像：$SKYBLUE$mirrorserver_temp $YELLOW······$RESET \c" && size=$(curl -m 10 -skIL ""$dlurl"" | grep content-length | tail -1 | awk '{print $2}')
-						done
-						[ "$size" ] && mirrorserver=$mirrorserver_temp && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && saveconfig && break
-					}
-				done
-				[ "$size" ] && [ $Available -lt $size ] && echo -e "\n$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET\n" && return 1 || size=""
-			else
-				return 1
-			fi
-		}
-		[ "$size" ] && size=$(($((size/1024))+$((4-$((size/1024%4))%4)))) && echo -e "$GREEN获取成功！文件大小：$BLUE$size $GREEN，当前可用：$BLUE$Available$RESET" && [ $Available -lt $size ] && echo -e "\n$RED当前脚本存放位置 $BLUE$0 $RED的所在分区 $BLUE$Filesystem $RED空间过小！请更换本脚本存放位置！$RESET\n" && return 1
-	}
-	echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && failedcount=1
-	http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-	while [ $http_code != 200 -a $failedcount -lt 3 ];do
-		rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
-		echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-	done
-	[ $http_code != 200 ] && {
-		if [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
+	for pid in $(ps | grep ${0##*/} | grep -v grep | awk '{print $1}');do [ ! "$pid" = "$$" ] && killpid $pid &> /dev/null;done
+	dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
+	rm -f /tmp/clash_download_result && echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && failedcount=1 && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+	while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
+	[ "$size" ] || {
+		if [ "$(echo "$3" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
 			for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
 				[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
-					rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1 && failedcount=1
-					dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
-					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c"
-					http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-					while [ $http_code != 200 -a $failedcount -lt 3 ];do
-						rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
-						echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && http_code=$(curl -m 10 -sLko $1 "$dlurl" -w "%{http_code}")
-					done
-					[ $http_code = 200 ] && mirrorserver=$mirrorserver_temp && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
+					echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1
+					failedcount=1 && dlurl="$(echo "$3" | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
+					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+					while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
+					[ "$size" ] && mirrorserver=$mirrorserver_temp && saveconfig && break
 				}
 			done
-			rm -f $1 && return 1
+			 [ "$size" ] || return 1
 		else
-			rm -f $1 && return 1
+			[ "$4" = "nosize" ] || return 1
 		fi
 	}
+	if [ "$size" ];then
+		{
+			echo -en "\n\n#_________________________________________________ 0%"
+			Progress_size=$((size/50)) && OldProgress=0
+			until [ "$(cat /tmp/clash_download_result 2> /dev/null)" ];do
+				sleep 1 && [ -f $1 ] && NowProgress=$(($(ls -l $1 2> /dev/null | awk '{print $5}')/Progress_size*2))
+				[ "$NowProgress" ] && [ $NowProgress -gt 0 ] && [ "$NowProgress" != "$OldProgress" ] && {
+					[ $NowProgress -gt 9 ] && back="\b\b\b\b";[ $OldProgress -le 9 ] && back="\b\b\b";echo -en "$back" && back=""
+					backcount=100 && while [ $backcount -gt $OldProgress ];do let backcount--;[ $((backcount%2)) = 1 ] && back="$back\b";done;echo -en "$back"
+					awk BEGIN'{for(i='$OldProgress';i<'$NowProgress';i++)if(i%2==1)printf "#"}' && awk BEGIN'{for(i='$NowProgress';i<100;i++)if(i%2==1)printf "_"}' && [ "$NowProgress" = "100" ] && echo -n " 99%" || echo -n " $NowProgress%"
+					OldProgress=$NowProgress
+				}
+			done
+			[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
+		} & failedcount=1 && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+		wait;rm -f /tmp/clash_download_result
+		while [ ! "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" -a $failedcount -lt 3 ];do
+			rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
+			echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET"
+			{
+				echo -en "\n#_________________________________________________ 0%"
+				Progress_size=$((size/50)) && OldProgress=0
+				until [ "$(cat /tmp/clash_download_result 2> /dev/null)" ];do
+					sleep 1 && [ -f $1 ] && NowProgress=$(($(ls -l $1 2> /dev/null | awk '{print $5}')/Progress_size*2))
+					[ "$NowProgress" ] && [ $NowProgress -gt 0 ] && [ "$NowProgress" != "$OldProgress" ] && {
+						[ $NowProgress -gt 9 ] && back="\b\b\b\b";[ $OldProgress -le 9 ] && back="\b\b\b";echo -en "$back" && back=""
+						backcount=100 && while [ $backcount -gt $OldProgress ];do let backcount--;[ $((backcount%2)) = 1 ] && back="$back\b";done;echo -en "$back"
+						awk BEGIN'{for(i='$OldProgress';i<'$NowProgress';i++)if(i%2==1)printf "#"}' && awk BEGIN'{for(i='$NowProgress';i<100;i++)if(i%2==1)printf "_"}' && [ "$NowProgress" = "100" ] && echo -n " 99%" || echo -n " $NowProgress%"
+						OldProgress=$NowProgress
+					}
+				done
+				[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
+			} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+			wait;rm -f /tmp/clash_download_result
+		done
+		[ "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] || {
+			[ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ] && {
+				for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
+					[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
+						rm -f $1 && echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1
+						failedcount=1 && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
+						echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET"
+						{
+							echo -en "\n#_________________________________________________ 0%"
+							Progress_size=$((size/50)) && OldProgress=0
+							until [ "$(cat /tmp/clash_download_result 2> /dev/null)" ];do
+								sleep 1 && [ -f $1 ] && NowProgress=$(($(ls -l $1 2> /dev/null | awk '{print $5}')/Progress_size*2))
+								[ "$NowProgress" ] && [ $NowProgress -gt 0 ] && [ "$NowProgress" != "$OldProgress" ] && {
+									[ $NowProgress -gt 9 ] && back="\b\b\b\b";[ $OldProgress -le 9 ] && back="\b\b\b";echo -en "$back" && back=""
+									backcount=100 && while [ $backcount -gt $OldProgress ];do let backcount--;[ $((backcount%2)) = 1 ] && back="$back\b";done;echo -en "$back"
+									awk BEGIN'{for(i='$OldProgress';i<'$NowProgress';i++)if(i%2==1)printf "#"}' && awk BEGIN'{for(i='$NowProgress';i<100;i++)if(i%2==1)printf "_"}' && [ "$NowProgress" = "100" ] && echo -n " 99%" || echo -n " $NowProgress%"
+									OldProgress=$NowProgress
+								}
+							done
+							[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
+						} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+						wait;rm -f /tmp/clash_download_result
+						while [ ! "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" -a $failedcount -lt 3 ];do
+							rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
+							echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET"
+							{
+								echo -en "\n#_________________________________________________ 0%"
+								Progress_size=$((size/50)) && OldProgress=0
+								until [ "$(cat /tmp/clash_download_result 2> /dev/null)" ];do
+									sleep 1 && [ -f $1 ] && NowProgress=$(($(ls -l $1 2> /dev/null | awk '{print $5}')/Progress_size*2))
+									[ "$NowProgress" ] && [ $NowProgress -gt 0 ] && [ "$NowProgress" != "$OldProgress" ] && {
+										[ $NowProgress -gt 9 ] && back="\b\b\b\b";[ $OldProgress -le 9 ] && back="\b\b\b";echo -en "$back" && back=""
+										backcount=100 && while [ $backcount -gt $OldProgress ];do let backcount--;[ $((backcount%2)) = 1 ] && back="$back\b";done;echo -en "$back"
+										awk BEGIN'{for(i='$OldProgress';i<'$NowProgress';i++)if(i%2==1)printf "#"}' && awk BEGIN'{for(i='$NowProgress';i<100;i++)if(i%2==1)printf "_"}' && [ "$NowProgress" = "100" ] && echo -n " 99%" || echo -n " $NowProgress%"
+										OldProgress=$NowProgress
+									}
+								done
+								[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
+							} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+							wait;rm -f /tmp/clash_download_result
+						done
+						[ "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && mirrorserver=$mirrorserver_temp && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
+					}
+				done
+			}
+			rm -f $1 && return 1
+		}
+	else
+		failedcount=1 && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl"
+		while [ ! "$?" = "0" ];do
+			rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
+			echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl"
+		done
+		[ "$?" = "0" ] || { rm -f $1 && return 1; }
+	fi
 	echo -e "$GREEN下载成功！$RESET"
 }
 update(){
@@ -306,11 +364,11 @@ update(){
 				}
 			}
 			subs=1 && for url in $(echo $sublink | sed 's/|/ /g');do
-				[ "$udp_support" = "开" ] && sub_udp="&udp=true"
-				[ "$tls13" = "开" ] && sub_tls13="&tls13=true"
-				[ "$skip_cert_verify" = "开" ] && "&sub_scv=true"
+				sub_udp="" && [ "$udp_support" = "开" ] && sub_udp="&udp=true"
+				sub_tls13="" && [ "$tls13" = "开" ] && sub_tls13="&tls13=true"
+				sub_scv="" && [ "$skip_cert_verify" = "开" ] && sub_scv="&sub_scv=true"
 				sublink_urlencode="&url=$(urlencode "$url")";[ "$config_url" ] && config_url_urlencode="&config=$(urlencode "$config_url")"
-				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash$sublink_urlencode$config_url_urlencode$sub_scv$sub_udp$sub_tls13"
+				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash$sublink_urlencode$config_url_urlencode$sub_scv$sub_udp$sub_tls13" "nosize"
 				[ "$subconverter_path" ] && while [ "$(ps | grep -v grep | grep -E "$subconverter_path" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "$subconverter_path" | head -1 | awk '{print $1}');done
 				while [ "$(ps | grep -v grep | grep -E "subconverter" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "subconverter" | head -1 | awk '{print $1}');done
 				rm -rf /tmp/subconverter && [ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
@@ -348,7 +406,7 @@ update(){
 			echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
 			rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 		else
-			download "$CLASHDIR/config_original.yaml" "配置文件" "$sublink"
+			download "$CLASHDIR/config_original.yaml" "配置文件" "$sublink" "nosize"
 			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
 				if [ -f $CLASHDIR/config_original.yaml.backup ];then
 					echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
@@ -372,11 +430,11 @@ update(){
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ "$(grep -i geoip $CLASHDIR/config_original.yaml)" ] && [ ! -f $CLASHDIR/GeoIP.dat ] && {
-		download "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url" "true"
+		download "$CLASHDIR/GeoIP.dat" "GeoIP数据库文件" "$geoip_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ "$(grep -i geosite $CLASHDIR/config_original.yaml)" -o "$dns_mode" = "mixed" ] && [ ! -f $CLASHDIR/GeoSite.dat ] && {
-		download "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url" "true"
+		download "$CLASHDIR/GeoSite.dat" "GeoSite数据库文件" "$geosite_url"
 		[ $? != 0 ] && echo -e "$RED下载失败！已自动退出脚本！$RESET" && exit
 	}
 	[ ! "$1" -o "$1" = "restore" -o "$1" = "crontab" ] && start
