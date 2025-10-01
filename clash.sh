@@ -132,10 +132,6 @@ EOF
 	error="$($CLASHDIR/mihomo -d $CLASHDIR -t $CLASHDIR/config.yaml | grep error | awk -F = '{print $3"="$NF}')"
 	[ "$error" ] && echo -e "\n${BLUE}Clash-mihomo $RED启动失败！\n$RESET\n$error\n" && exit
 	sed -i '/Clash/d' /etc/passwd && echo "Clash:x:0:$redir_port:::" >> /etc/passwd
-	cp -f $CLASHDIR/config.yaml /www/Clash-Bigme.yaml
-	sed -i '/authentication/d' /www/Clash-Bigme.yaml
-	sed -i 's#127.0.0.1:54#223.5.5.5, 223.6.6.6, 119.29.29.29, 101.226.4.6, 218.30.118.6#' /www/Clash-Bigme.yaml
-	sed -i 's#127.0.0.1:55#tls://getdnsapi.net, https://ada.openbld.net/dns-query, https://v.recipes/dns-query, https://wikimedia-dns.org/dns-query, https://private.canadianshield.cira.ca/dns-query, https://ibksturm.synology.me/dns-query, https://rx.techomespace.com/dns-query, https://public.ns.nwps.fi/dns-query, https://frd4wvnobp.cloudflare-gateway.com/dns-query, https://dnsguard.pub/dns-query#' /www/Clash-Bigme.yaml
 	[ "$redirect_mode" = "tproxy" ] || modprobe tun 2> /dev/null
 	start-stop-daemon -Sbc Clash:$redir_port -x $CLASHDIR/mihomo -- -d $CLASHDIR &
 	[ "$redirect_mode" = "tproxy" ] || while [ ! "$(ifconfig | grep utun)" ];do usleep 100000;done
