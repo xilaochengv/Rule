@@ -1,4 +1,4 @@
-version=v1.0.0b
+version=v1.0.0c
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -255,7 +255,7 @@ download(){
 				}
 			done
 			[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
-		} & failedcount=1 && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+		} & failedcount=1 && curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
 		wait;rm -f /tmp/clash_download_result
 		while [ ! "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" -a $failedcount -lt 3 ];do
 			rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
@@ -273,7 +273,7 @@ download(){
 					}
 				done
 				[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
-			} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+			} & curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
 			wait;rm -f /tmp/clash_download_result
 		done
 		[ "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] || {
@@ -296,7 +296,7 @@ download(){
 								}
 							done
 							[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
-						} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+						} & curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
 						wait;rm -f /tmp/clash_download_result
 						while [ ! "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" -a $failedcount -lt 3 ];do
 							rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
@@ -314,7 +314,7 @@ download(){
 									}
 								done
 								[ -f $1 -a "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && echo -e "\b\b\b100% \c" || echo -n " "
-							} & curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
+							} & curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl";echo done > /tmp/clash_download_result
 							wait;rm -f /tmp/clash_download_result
 						done
 						[ "$(ls -l $1 2> /dev/null | awk '{print $5}')" = "$size" ] && mirrorserver=$mirrorserver_temp && echo -e "$GREEN下载成功！$RESET" && saveconfig && return 0
@@ -324,10 +324,10 @@ download(){
 			rm -f $1 && return 1
 		}
 	else
-		failedcount=1 && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl"
-		while [ ! "$?" = "0" ];do
+		failedcount=1 && curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl"
+		while [ ! "$?" = "0" -a $failedcount -lt 3 ];do
 			rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
-			echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && curl --connect-timeout 3 -m 10 -sLko $1 "$dlurl"
+			echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl"
 		done
 		[ "$?" = "0" ] || { rm -f $1 && return 1; }
 	fi
