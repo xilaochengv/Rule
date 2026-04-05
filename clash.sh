@@ -1,4 +1,4 @@
-version=v1.0.0d
+version=v1.0.0e
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -139,7 +139,7 @@ EOF
 	curl -so /dev/null "http://127.0.0.1:$dashboard_port/group/节点选择/delay?url=https://www.google.com/generate_204&timeout=5000" &
 	echo -e "rm -f \$0\nhosto=\$(ip route | grep br-lan | awk {'print \$9'})\nipv4o=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv4-address\"][0].address')\nipv6o=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv6-address\"][0].address')\nwhile [ \"\$(pidof mihomo)\" ];do\n\tsleep 10\n\thostn=\$(ip route | grep br-lan | awk {'print \$9'})\n\tipv4n=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv4-address\"][0].address')\n\tipv6n=\$(ubus call network.interface.wan status | jsonfilter -e '@[\"ipv6-address\"][0].address')\n\t[ \"\$hostn\" -a \"\$hosto\" != \"\$hostn\" -o \"\$ipv4n\" -a \"\$ipv4o\" != \"\$ipv4n\" -o \"\$ipv6n\" -a \"\$ipv6o\" != \"\$ipv6n\" ] && { hosto=\$hostn && ipv4o=\$ipv4n && ipv6o=\$ipv6n && $0 startfirewall; }\n\t[ \$(awk 'NR==3{print \$2}' /proc/meminfo) -lt 102400 ] && curl -so /dev/null \"http://127.0.0.1:$dashboard_port/debug/gc\" -X PUT\n\t[ ! \"\$(iptables -w -t mangle -S Clash 2> /dev/null)\" ] && $0 startfirewall\ndone" > /tmp/autooc.sh && chmod 755 /tmp/autooc.sh && /tmp/autooc.sh &
 	echo -e "\n${BLUE}Clash-mihomo $GREEN启动成功！$YELLOW面板管理页面：$SKYBLUE$localip:$dashboard_port/ui$RESET\n" && rm -f $CLASHDIR/config_original.yaml.backup
-	rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
+	rm -f $CLASHDIR/config_original_*.yaml $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 	#修复小米AX9000开启QOS功能情况下某些特定udp端口（如80 8080等）流量无法通过问题
 	[ "$(uci get /usr/share/xiaoqiang/xiaoqiang_version.version.HARDWARE 2> /dev/null)" = "RA70" ] && [ -d /sys/module/shortcut_fe_cm ] && rmmod shortcut-fe-cm &> /dev/null
 	mihomonum=0 && return 0
@@ -363,8 +363,17 @@ update(){
 				sub_udp="" && [ "$udp_support" = "开" ] && sub_udp="&udp=true"
 				sub_tls13="" && [ "$tls13" = "开" ] && sub_tls13="&tls13=true"
 				sub_scv="" && [ "$skip_cert_verify" = "开" ] && sub_scv="&sub_scv=true"
-				sublink_urlencode="&url=$(urlencode "$url")";[ "$config_url" ] && config_url_urlencode="&config=$(urlencode "$config_url")"
-				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置文件" "$sub_url/sub?target=clash$sublink_urlencode$config_url_urlencode$sub_scv$sub_udp$sub_tls13" "nosize"
+				[ "$config_url" ] && config_url_urlencode="&config=$(urlencode "$config_url")"
+				download "$CLASHDIR/config_original_$subs.yaml" "配置文件" "$url" "nosize"
+				[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
+					if [ -f $CLASHDIR/config_original.yaml.backup ];then
+						echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
+						mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
+					else
+						echo -e "$RED下载失败！已自动退出脚本$RESET" && exit
+					fi
+				}
+				download "$CLASHDIR/config_original_temp_$subs.yaml" "配置转换文件" "$sub_url/sub?target=clash&url=$CLASHDIR/config_original_$subs.yaml$config_url_urlencode$sub_scv$sub_udp$sub_tls13" "nosize"
 				[ "$subconverter_path" ] && while [ "$(ps | grep -v grep | grep -E "$subconverter_path" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "$subconverter_path" | head -1 | awk '{print $1}');done
 				while [ "$(ps | grep -v grep | grep -E "subconverter" 2> /dev/null | head -1 | awk '{print $1}')" ];do killpid $(ps | grep -v grep | grep -E "subconverter" | head -1 | awk '{print $1}');done
 				rm -rf /tmp/subconverter && [ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original_temp_$subs.yaml ] && {
@@ -373,7 +382,7 @@ update(){
 						[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo;echo -e "$YELLOW下载失败！即将尝试使用备份配置文件运行！$RESET"
 						mv -f $CLASHDIR/config_original.yaml.backup $CLASHDIR/config_original.yaml && [ ! "$1" -o "$1" = "crontab" ] && update restore || update missingfiles;return 1
 					else
-						[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo;echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_temp_*.yaml && exit
+						[ "$(echo $sub_url | grep 127.0.0.1:25500)" -a "$config_url" ] && echo;echo -e "$RED下载失败！已自动退出脚本$RESET" && rm -f $CLASHDIR/config_original_*.yaml $CLASHDIR/config_original_temp_*.yaml && exit
 					fi
 				}
 				sed -n '/^rules/,/*/p' $CLASHDIR/config_original_temp_$subs.yaml > $CLASHDIR/rules.yaml
@@ -392,15 +401,15 @@ update(){
 					let subcount++
 				done
 			done && echo testing >> $CLASHDIR/proxy-groups.yaml && {
-				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "\#\($exclude_name_name\)#d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
-				[ "$exclude_type" ] && exclude_type_name=$(sed 's/\(.*type: [^,]*\).*/\1/' $CLASHDIR/proxies.yaml | grep -E "type:.*$exclude_type" | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($exclude_type_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
+				[ "$exclude_name" ] && exclude_name_name=$(sed 's/.*name: //;s/,.*//' $CLASHDIR/proxies.yaml | grep -E "$exclude_name" | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_name_name=$(echo $exclude_name_name | sed 's/ /\\\|/g;s/*/ /g') && [ "$exclude_name_name" ] && sed -i "\#\($exclude_name_name\)#d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
+				[ "$exclude_type" ] && exclude_type_name=$(sed 's/\(.*type: [^,]*\).*/\1/' $CLASHDIR/proxies.yaml | grep -E "type:.*$exclude_type" | awk -F , '{print $1}' | sed 's/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g') && exclude_type_name=$(echo $exclude_type_name | sed 's/ /\\\|/g;s/*/ /g') && [ "$exclude_type_name" ] && sed -i "/\($exclude_type_name\)/d" $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml
 				for startline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do startlines="$startlines\n$(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | awk '{print $1}')";startlines_name="$startlines_name $(awk '/name/{flag=1} flag && NR<='$((startline-1))'{print NR$0; if (NR=='$((startline-1))') exit}' $CLASHDIR/proxy-groups.yaml | grep name | tail -1 | sed 's/.*name: //;s/.*: //;s/ /*/g;s/"//g;s/\[/\\\[/g')";done
 				for stopline in $(grep -nA1 proxies $CLASHDIR/proxy-groups.yaml | grep -vE "proxies|      -" | grep -oE [0-9]{1,5});do stoplines="$stoplines\n$((stopline-1))";done
 				sed -i '$d' $CLASHDIR/proxy-groups.yaml && lines=$(echo -e "$startlines\n$stoplines" | sort) && lines=$(echo $lines | awk '{for(i=1;i<=NF;i+=2) printf "-e %s,%sd ", $i, $(i+1)}') && [ "$lines" ] && sed -i $lines $CLASHDIR/proxy-groups.yaml && startlines_name=$(echo $startlines_name | sed 's/ /\\\|/g;s/*/ /g') && sed -i "/\($startlines_name\)/d" $CLASHDIR/proxy-groups.yaml
 			}
 			echo "proxies:" > $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxies.yaml >> $CLASHDIR/config_original.yaml
 			echo "proxy-groups:" >> $CLASHDIR/config_original.yaml && cat $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml >> $CLASHDIR/config_original.yaml
-			rm -f $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
+			rm -f $CLASHDIR/config_original_*.yaml $CLASHDIR/config_original_temp_*.yaml $CLASHDIR/proxy-groups_temp_*.yaml $CLASHDIR/proxies.yaml $CLASHDIR/proxy-groups.yaml $CLASHDIR/rules.yaml
 		else
 			download "$CLASHDIR/config_original.yaml" "配置文件" "$sublink" "nosize"
 			[ $failedcount -eq 3 -a ! -f $CLASHDIR/config_original.yaml ] && {
