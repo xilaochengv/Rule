@@ -1,4 +1,4 @@
-version=v1.0.0e
+version=v1.0.0f
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -223,23 +223,25 @@ urlencode() {
 download(){
 	for pid in $(ps | grep ${0##*/} | grep -v grep | awk '{print $1}');do [ ! "$pid" = "$$" ] && killpid $pid &> /dev/null;done
 	dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	rm -f /tmp/clash_download_result && echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && failedcount=1 && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
-	while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
-	[ "$size" ] || {
-		if [ "$(echo "$3" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
-			for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
-				[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
-					echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1
-					failedcount=1 && dlurl="$(echo "$3" | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
-					echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
-					while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
-					[ "$size" ] && mirrorserver=$mirrorserver_temp && saveconfig && break
-				}
-			done
-			 [ "$size" ] || return 1
-		else
-			[ "$4" = "nosize" ] || return 1
-		fi
+	rm -f /tmp/clash_download_result && echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && [ "$4" != "nosize" ] && {
+		failedcount=1 && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+		while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
+		[ "$size" ] || {
+			if [ "$(echo "$3" | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" ];then
+				for mirrorserver_temp in $(cat $CLASHDIR/mirror_server.ini);do
+					[ ! "$mirrorserver_temp" = "$mirrorserver" ] && {
+						echo -e "$RED下载失败！即将尝试切换加速镜像重新下载！$RESET" && sleep 1
+						failedcount=1 && dlurl="$(echo "$3" | sed "s#.*#$(echo $mirrorserver_temp | sed 's/[^/]$/&\//')&#")"
+						echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
+						while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
+						[ "$size" ] && mirrorserver=$mirrorserver_temp && saveconfig && break
+					}
+				done
+				[ "$size" ] || return 1
+			else
+				return 1
+			fi
+		}
 	}
 	if [ "$size" ];then
 		{
@@ -324,7 +326,7 @@ download(){
 			rm -f $1 && return 1
 		}
 	else
-		failedcount=1 && curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl"
+		failedcount=1 && curl --connect-timeout 3 -m 20 -A mihomo -sLko $1 "$dlurl"
 		while [ ! "$?" = "0" -a $failedcount -lt 3 ];do
 			rm -f $1 && echo -e "$RED下载失败！即将尝试重新下载！已尝试下载次数：$failedcount$RESET" && sleep 1 && let failedcount++
 			echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && curl --connect-timeout 3 -m 20 -sLko $1 "$dlurl"
