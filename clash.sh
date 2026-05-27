@@ -1,4 +1,4 @@
-version=v1.0.0f
+version=v1.0.0g
 CLASHDIR=$(dirname $0) && [ -s $CLASHDIR/config.ini ] && . $CLASHDIR/config.ini
 RED='\e[0;31m';GREEN='\e[1;32m';YELLOW='\e[1;33m';BLUE='\e[1;34m';PINK='\e[1;35m';SKYBLUE='\e[1;36m';RESET='\e[0m'
 [ ! "$(grep CLASHDIR /etc/profile)" ] && echo -e "$YELLOW脚本提示：现在退出并重进SSH即可直接使用clash命令呼叫菜单$RESET" && sleep 1
@@ -223,7 +223,7 @@ urlencode() {
 download(){
 	for pid in $(ps | grep ${0##*/} | grep -v grep | awk '{print $1}');do [ ! "$pid" = "$$" ] && killpid $pid &> /dev/null;done
 	dlurl=$3 && [ "$(echo $3 | grep -vE '/http|=http' | grep -E 'github.com/|githubusercontent.com/')" -a "$mirrorserver" ] && dlurl="$(echo $3 | sed "s#.*#$(echo $mirrorserver | sed 's/[^/]$/&\//')&#")"
-	rm -f /tmp/clash_download_result && echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && [ "$4" != "nosize" ] && {
+	rm -f /tmp/clash_download_result && echo -e "\n$YELLOW下载$2 $SKYBLUE$dlurl $YELLOW······$RESET \c" && size="" && [ "$4" != "nosize" ] && {
 		failedcount=1 && size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}')
 		while [ ! "$size" -a $failedcount -lt 3 ];do let failedcount++;size=$(curl -m 3 -skIL "$dlurl" | grep content-length | tail -1 | awk '{print $2}');done
 		[ "$size" ] || {
