@@ -47,7 +47,7 @@ jobs:
         rm -f sites/tracker
         rules="apple bahamut epicgames google microsoft ookla-speedtest steam telegram youtube"
         for rule in $rules;do curl -s https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/$rule > sites/$rule;done
-        for rule in $(ls sites);do sed -i 's/#.*//;s/ //g' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
+        for rule in $(ls sites);do sed -i 's/#.*//;s/ //g;/regexp:/d' sites/$rule;echo -n "$(cat sites/$rule | grep '[^^$]')" > sites/$rule;done
     - name: 生成文件
       run: |
         curl -skm 10 https://trackerslist.com/all.txt > trackers
